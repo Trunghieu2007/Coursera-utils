@@ -1,7 +1,7 @@
 <div align="center">
   <img src="icons/icon128.png" width="80" height="80" alt="Coursera Questions Copy Icon" />
   <h1>Coursera Questions Copy</h1>
-  <p>A browser extension to extract questions from Coursera quiz and assignment pages and copy them to the clipboard as structured JSON for study notes and review.</p>
+  <p>A browser extension that extracts questions from Coursera quizzes and assignments and copies them to the clipboard as structured JSON for study notes, revision, and review.</p>
 
   <p>
     <a href="README.md"><b>English</b></a> | <a href="README.vi.md"><b>Tiếng Việt</b></a>
@@ -15,6 +15,12 @@
 </div>
 
 ---
+
+## Overview
+
+I developed this project to make working with Coursera question content more convenient and efficient, especially when preparing study notes and reviewing course materials.
+
+By converting questions into structured text instead of relying on screenshots, the extension makes content easier to copy, organize, and reuse with a wide range of large language models (LLMs). Text-based input may also reduce token usage compared with image-based input, depending on the model and context.
 
 ## Preview
 
@@ -37,12 +43,13 @@
 
 ## Features
 
-- **Auto copy:** Automatically copies questions to the clipboard when an assignment page loads.
-- **Manual copy:** Copies questions on demand by clicking a button in the popup.
-- **JSON format:** Formats questions, choices, and question types into clean JSON.
-- **Bilingual interface:** Supports English and Vietnamese across the popup and in-page notices.
-- **Theme support:** Follows system theme or allows manual Light/Dark selection.
-- **Local execution:** All operations run locally inside the browser without external network requests.
+- **Auto Copy:** Automatically copies questions to the clipboard when a supported assignment page loads.
+- **Manual Copy:** Copies questions on demand through a button in the extension popup.
+- **Structured JSON:** Organizes questions, answer choices, and question types into clean, readable JSON.
+- **LLM-Friendly Workflow:** Makes extracted text easy to paste into different LLMs or personal note-taking tools, without requiring screenshots.
+- **Bilingual Interface:** Supports English and Vietnamese across the popup and in-page notifications.
+- **Theme Support:** Follows the system theme or allows manual Light/Dark selection.
+- **Local Execution:** All operations run locally within the browser without sending external network requests.
 
 ---
 
@@ -52,18 +59,18 @@
 2. Open Chrome or any Chromium-based browser and navigate to `chrome://extensions/`.
 3. Enable **Developer mode** in the top-right corner.
 4. Click **Load unpacked** and select the extension directory.
-5. Open an assignment page on Coursera (`https://www.coursera.org/learn/...`).
+5. Open a supported assignment page on Coursera.
 
 ---
 
 ## Settings
 
-Click the extension icon in the toolbar to access configuration options:
+Click the extension icon in the toolbar to access the configuration options.
 
 | Setting | Description |
 | :--- | :--- |
-| **Auto copy** | Automatically copies questions when a lesson page opens. |
-| **Language** | Switches the interface and in-page notices between English and Vietnamese. |
+| **Auto copy** | Automatically copies questions when a supported lesson or assignment page loads. |
+| **Language** | Switches the interface and in-page notifications between English and Vietnamese. |
 | **Theme** | Selects Follow system, Light, or Dark theme. |
 | **Copy this page** | Manually copies questions from the current active tab. |
 
@@ -90,11 +97,14 @@ Extracted questions are placed on the clipboard in the following format:
 ```
 
 Recognized question types:
+
 - `single_answer`
 - `multiple_answer`
 - `essay`
 - `text_input`
 - `code_expression`
+
+The output can be pasted into compatible LLM interfaces, text editors, or note-taking applications for further study and review.
 
 ---
 
@@ -114,6 +124,18 @@ README.vi.md       Vietnamese documentation
 
 ---
 
+## Development and Contributions
+
+This project was developed with AI assistance using a *vibe coding* workflow and is actively maintained.
+
+I aim to keep the project up to date, and additional features or improvements may be introduced in future releases.
+
+If you encounter a bug or have an idea for an improvement, please submit a **Pull Request** with relevant details so I can investigate the issue and work on a solution.
+
+Contributions, suggestions, and feedback are welcome.
+
+---
+
 ## License
 
-Distributed under the [MIT](LICENSE) License.
+Distributed under the [MIT License](LICENSE).

@@ -1,7 +1,7 @@
 <div align="center">
   <img src="icons/icon128.png" width="80" height="80" alt="Biểu tượng Coursera Questions Copy" />
   <h1>Coursera Questions Copy</h1>
-  <p>Tiện ích mở rộng trình duyệt giúp trích xuất câu hỏi từ các trang bài tập, trắc nghiệm trên Coursera và sao chép vào bảng nhớ tạm dưới dạng JSON có cấu trúc để ghi chú và ôn tập.</p>
+  <p>Tiện ích mở rộng trình duyệt giúp trích xuất câu hỏi từ các bài kiểm tra và bài tập trên Coursera, sau đó sao chép vào bảng nhớ tạm dưới dạng JSON có cấu trúc để ghi chú và ôn tập.</p>
 
   <p>
     <a href="README.md"><b>English</b></a> | <a href="README.vi.md"><b>Tiếng Việt</b></a>
@@ -15,6 +15,12 @@
 </div>
 
 ---
+
+## Giới thiệu
+
+Tôi phát triển dự án này với mong muốn giúp việc xử lý nội dung câu hỏi trên Coursera trở nên thuận tiện và hiệu quả hơn, đặc biệt khi ghi chú và ôn tập kiến thức trong khóa học.
+
+Thay vì phải chụp ảnh màn hình, tiện ích chuyển câu hỏi thành văn bản có cấu trúc, giúp bạn dễ dàng sao chép, tổ chức và sử dụng với nhiều mô hình ngôn ngữ lớn (LLM) khác nhau. Tùy thuộc vào mô hình và ngữ cảnh, đầu vào dạng văn bản cũng có thể tiết kiệm token hơn so với đầu vào bằng hình ảnh.
 
 ## Giao diện
 
@@ -37,41 +43,42 @@
 
 ## Tính năng
 
-- **Tự động sao chép:** Tự động sao chép câu hỏi vào bảng nhớ tạm ngay khi trang bài tập tải xong.
-- **Sao chép thủ công:** Sao chép chủ động thông qua nút bấm trong giao diện popup.
-- **Định dạng JSON:** Chuẩn hóa câu hỏi, phương án trả lời và phân loại câu hỏi thành chuỗi JSON rõ ràng.
-- **Hỗ trợ song ngữ:** Hỗ trợ tiếng Anh và tiếng Việt cho giao diện popup lẫn thông báo trên trang.
-- **Tùy biến giao diện:** Theo hệ thống hoặc chọn thủ công chế độ Sáng/Tối.
-- **Xử lý nội bộ:** Toàn bộ tác vụ chạy cục bộ trong trình duyệt, không gửi yêu cầu qua mạng ra bên ngoài.
+- **Tự động sao chép:** Tự động sao chép câu hỏi vào bảng nhớ tạm khi trang bài tập được hỗ trợ tải xong.
+- **Sao chép thủ công:** Cho phép sao chép câu hỏi theo yêu cầu thông qua nút bấm trong giao diện popup.
+- **Dữ liệu JSON có cấu trúc:** Chuẩn hóa câu hỏi, các phương án trả lời và loại câu hỏi thành dữ liệu JSON rõ ràng, dễ đọc.
+- **Tương thích với nhiều LLM:** Giúp bạn dễ dàng dán nội dung đã trích xuất vào các mô hình ngôn ngữ lớn hoặc công cụ ghi chú mà không cần sử dụng ảnh chụp màn hình.
+- **Hỗ trợ song ngữ:** Hỗ trợ tiếng Anh và tiếng Việt trên giao diện popup lẫn các thông báo trực tiếp trên trang.
+- **Tùy chỉnh giao diện:** Tự động theo giao diện hệ thống hoặc cho phép lựa chọn thủ công chế độ Sáng/Tối.
+- **Xử lý cục bộ:** Toàn bộ thao tác được thực hiện trực tiếp trong trình duyệt, không gửi yêu cầu mạng ra bên ngoài.
 
 ---
 
 ## Cài đặt
 
 1. Tải về hoặc clone kho mã nguồn này.
-2. Mở trình duyệt Chrome hoặc các trình duyệt nhân Chromium và truy cập `chrome://extensions/`.
+2. Mở Chrome hoặc trình duyệt sử dụng nhân Chromium và truy cập `chrome://extensions/`.
 3. Bật **Chế độ dành cho nhà phát triển** (Developer mode) ở góc trên bên phải.
-4. Bấm **Tải tiện ích đã giải nén** (Load unpacked) và chọn thư mục tiện ích.
-5. Truy cập trang bài tập bất kỳ trên Coursera (`https://www.coursera.org/learn/...`).
+4. Nhấn **Tải tiện ích đã giải nén** (Load unpacked) và chọn thư mục tiện ích.
+5. Mở một trang bài tập được hỗ trợ trên Coursera.
 
 ---
 
 ## Thiết lập
 
-Bấm vào biểu tượng tiện ích trên thanh công cụ để mở menu cài đặt:
+Nhấn vào biểu tượng tiện ích trên thanh công cụ để truy cập các tùy chọn cấu hình.
 
 | Thiết lập | Mô tả |
 | :--- | :--- |
-| **Auto copy** | Tự động sao chép câu hỏi khi mở trang bài tập. |
-| **Language** | Chuyển đổi ngôn ngữ hiển thị và thông báo giữa tiếng Anh và tiếng Việt. |
+| **Auto copy** | Tự động sao chép câu hỏi khi trang bài học hoặc bài tập được hỗ trợ tải xong. |
+| **Language** | Chuyển đổi ngôn ngữ giao diện và thông báo giữa tiếng Anh và tiếng Việt. |
 | **Theme** | Lựa chọn giao diện Theo hệ thống, Sáng hoặc Tối. |
-| **Copy this page** | Thực hiện sao chép câu hỏi trên tab hiện tại. |
+| **Copy this page** | Sao chép thủ công câu hỏi từ tab đang hoạt động. |
 
 ---
 
 ## Cấu trúc dữ liệu JSON
 
-Dữ liệu sao chép vào bảng nhớ tạm có định dạng như sau:
+Các câu hỏi được sao chép vào bảng nhớ tạm theo định dạng sau:
 
 ```json
 [
@@ -89,31 +96,46 @@ Dữ liệu sao chép vào bảng nhớ tạm có định dạng như sau:
 ]
 ```
 
-Các dạng câu hỏi được phân loại:
+Các dạng câu hỏi được nhận diện:
+
 - `single_answer`
 - `multiple_answer`
 - `essay`
 - `text_input`
 - `code_expression`
 
+Dữ liệu đầu ra có thể được dán vào các giao diện LLM tương thích, trình soạn thảo văn bản hoặc ứng dụng ghi chú để phục vụ việc học tập và ôn tập.
+
 ---
 
 ## Cấu trúc thư mục
 
 ```text
-icons/             Tập tin biểu tượng tiện ích
-pics/              Hình ảnh giao diện
-manifest.json      Tập tin cấu hình tiện ích (MV3)
-content.js         Trích xuất DOM, xử lý clipboard và hiển thị thông báo
+icons/             Các tệp biểu tượng tiện ích
+pics/              Hình ảnh xem trước giao diện
+manifest.json      Tệp cấu hình tiện ích (MV3)
+content.js         Phân tích DOM, xử lý clipboard và thông báo
 popup.html         Cấu trúc giao diện popup
 popup.css          Định dạng giao diện popup
-popup.js           Xử lý sự kiện popup và lưu trữ cấu hình
+popup.js           Xử lý logic popup và lưu cấu hình
 README.md          Tài liệu tiếng Anh
 README.vi.md       Tài liệu tiếng Việt
 ```
 
 ---
 
+## Phát triển và đóng góp
+
+Dự án được phát triển với sự hỗ trợ của AI theo phương pháp *vibe coding* và hiện vẫn đang được duy trì, cập nhật.
+
+Tôi hướng đến việc giữ cho dự án luôn được cập nhật. Các tính năng và cải tiến mới có thể được bổ sung trong những phiên bản tương lai.
+
+Nếu gặp lỗi hoặc có ý tưởng cải tiến, vui lòng tạo **Pull Request**, kèm theo thông tin liên quan để tôi có thể điều tra và tìm hướng xử lý.
+
+Mọi đóng góp, đề xuất và phản hồi đều được hoan nghênh.
+
+---
+
 ## Giấy phép
 
-Phát hành theo giấy phép [MIT](LICENSE).
+Dự án được phát hành theo [Giấy phép MIT](LICENSE).
