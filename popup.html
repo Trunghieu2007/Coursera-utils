@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="popup.css">
+  <title>Copy Questions</title>
+</head>
+<body>
+  <header class="header">
+    <div class="header-text">
+      <h1 class="title" data-i18n="title">Copy Questions</h1>
+      <p class="subtitle" data-i18n="subtitle">Copy the visible question text to your clipboard.</p>
+    </div>
+    <span class="badge">v1.1</span>
+  </header>
+
+  <main class="stack">
+    <section class="card">
+      <label class="row" for="autoCopy">
+        <span class="row-text">
+          <strong data-i18n="autoCopy">Auto copy</strong>
+          <span class="row-hint" data-i18n="autoCopyHint">Copy questions when a lesson page opens.</span>
+        </span>
+        <span class="switch">
+          <input type="checkbox" id="autoCopy">
+          <span class="track" aria-hidden="true"></span>
+        </span>
+      </label>
+    </section>
+
+    <section class="card">
+      <div class="field">
+        <span class="field-label" data-i18n="language">Language</span>
+        <div class="picker" id="languagePicker"></div>
+      </div>
+      <div class="field">
+        <span class="field-label" data-i18n="theme">Theme</span>
+        <div class="picker" id="themePicker"></div>
+      </div>
+    </section>
+
+    <button id="copyNow" class="btn" type="button" data-i18n="copyButton">Copy this page</button>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+  </main>
+
+  <script src="popup.js"></script>
+</body>
+</html>

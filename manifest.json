@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Coursera Copy Questions",
+  "version": "1.1.0",
+  "description": "Copy the question text already visible on a Coursera lesson page into the clipboard as JSON, so you can paste it into your own notes and practice offline.",
+  "permissions": [
+    "storage",
+    "clipboardWrite"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.coursera.org/learn/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Coursera Copy Questions"
+  }
+}
