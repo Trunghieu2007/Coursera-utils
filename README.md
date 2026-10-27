@@ -134,6 +134,8 @@ If you encounter a bug or have an idea for an improvement, please submit a **Pul
 
 Contributions, suggestions, and feedback are welcome.
 
+Have fun!
+
 ---
 
 ## License
