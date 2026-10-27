@@ -44,6 +44,7 @@ Nội dung bảng nhớ tạm luôn là JSON, không có lựa chọn format:
 | `content.js` | Đọc DOM khối câu hỏi, dựng JSON, viết bảng nhớ tạm, thông báo trên trang, auto copy. |
 | `popup.html` / `popup.js` / `popup.css` | GUI bo góc chữ nhật, dropdown ngôn ngữ có cờ SVG, dropdown theme, 1 nút sao chép. |
 | `icons/` | 4 file PNG 16, 32, 48, 128 px cho toolbar và trang chi tiết extension. |
+| `README.md` / `LICENSE` / `.gitignore` | Tài liệu này, MIT kèm ghi chú nguồn selector, và ignore file tạm. |
 
 ## so với extension gốc
 

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Coursera Copy Questions",
   "version": "1.1.0",
-  "description": "Copy the question text already visible on a Coursera lesson page into the clipboard as JSON, so you can paste it into your own notes and practice offline.",
+  "description": "Copy the questions visible on a Coursera lesson page to the clipboard as JSON, for your own notes and offline practice.",
   "permissions": [
     "storage",
     "clipboardWrite"
