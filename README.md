@@ -43,6 +43,7 @@ Nội dung bảng nhớ tạm luôn là JSON, không có lựa chọn format:
 | `manifest.json` | MV3, chỉ xin `storage` + `clipboardWrite`, content script chỉ khớp `*.coursera.org/learn/*`. |
 | `content.js` | Đọc DOM khối câu hỏi, dựng JSON, viết bảng nhớ tạm, thông báo trên trang, auto copy. |
 | `popup.html` / `popup.js` / `popup.css` | GUI bo góc chữ nhật, dropdown ngôn ngữ có cờ SVG, dropdown theme, 1 nút sao chép. |
+| `icons/` | 4 file PNG 16, 32, 48, 128 px cho toolbar và trang chi tiết extension. |
 
 ## so với extension gốc
 
@@ -61,7 +62,6 @@ Nội dung sao chép cũng không chứa đáp án: trên trang bài tập thì 
 - Chỉ đọc nội dung Coursera đã render trên trang. Trang chưa tải xong câu hỏi thì extension chờ tối đa 8 giây, không có câu hỏi thì nó bỏ qua.
 - Coursera hay đổi class name và `data-testid`. Nếu một ngày không trích được câu nào, selectors trong `questionBlocks()` cần cập nhật theo DOM mới.
 - Cờ trong dropdown là SVG vẽ đơn giản vì Windows không render flag emoji trong `<option>` của select thường.
-- Repo không kèm file ảnh nên extension dùng icon mặc định của Chrome.
 
 ## Credit
 
