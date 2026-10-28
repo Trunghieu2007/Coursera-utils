@@ -46,6 +46,7 @@ Thay vì phải chụp ảnh màn hình, tiện ích chuyển câu hỏi thành 
 - **Tự động sao chép:** Tự động sao chép câu hỏi vào bảng nhớ tạm khi trang bài tập được hỗ trợ tải xong.
 - **Sao chép thủ công:** Cho phép sao chép câu hỏi theo yêu cầu thông qua nút bấm trong giao diện popup.
 - **Dữ liệu JSON có cấu trúc:** Chuẩn hóa câu hỏi, các phương án trả lời và loại câu hỏi thành dữ liệu JSON rõ ràng, dễ đọc.
+- **Công thức và hình ảnh:** Công thức được sao chép dưới dạng mã LaTeX nằm giữa hai dấu `$`, còn hình ảnh được sao chép dưới dạng liên kết markdown trỏ tới tệp gốc, nên những câu hỏi chứa phương trình hoặc hình minh họa không bị mất nội dung.
 - **Tương thích với nhiều LLM:** Giúp bạn dễ dàng dán nội dung đã trích xuất vào các mô hình ngôn ngữ lớn hoặc công cụ ghi chú mà không cần sử dụng ảnh chụp màn hình.
 - **Hỗ trợ song ngữ:** Hỗ trợ tiếng Anh và tiếng Việt trên giao diện popup lẫn các thông báo trực tiếp trên trang.
 - **Tùy chỉnh giao diện:** Tự động theo giao diện hệ thống hoặc cho phép lựa chọn thủ công chế độ Sáng/Tối.
@@ -103,6 +104,24 @@ Các dạng câu hỏi được nhận diện:
 - `essay`
 - `text_input`
 - `code_expression`
+
+Câu hỏi chứa công thức hoặc hình ảnh cũng được sao chép theo cùng cách, với mã công thức và địa chỉ ảnh được giữ nguyên tại vị trí xuất hiện:
+
+```json
+[
+  {
+    "questionNumber": 3,
+    "type": "single_answer",
+    "question": "Are the following vectors linearly independent?\n\n$\\mathbf{a} = \\begin{bmatrix} 1 \\\\ 0 \\\\ 1 \\end{bmatrix}$, $\\mathbf{b} = \\begin{bmatrix} 2 \\\\ -1 \\\\ 1 \\end{bmatrix}$\n\n![](https://d3c33hcgiwev3.cloudfront.net/imageassetproxy.v1/abc123_diagram.png)",
+    "options": [
+      "Yes",
+      "No"
+    ]
+  }
+]
+```
+
+Địa chỉ ảnh thuộc hệ thống phân phối nội dung của Coursera và chỉ được phục vụ cho phiên đăng nhập, nên việc mở liên kết đã sao chép cần trình duyệt đang đăng nhập vào khóa học.
 
 Dữ liệu đầu ra có thể được dán vào các giao diện LLM tương thích, trình soạn thảo văn bản hoặc ứng dụng ghi chú để phục vụ việc học tập và ôn tập.
 

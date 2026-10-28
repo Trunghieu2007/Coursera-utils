@@ -1,6 +1,7 @@
 const TOAST_ID = "ccq-toast";
 const WAIT_LIMIT = 8000;
 const WAIT_STEP = 250;
+const BLOCK_TAGS = ["p", "div", "li", "ul", "ol", "figure", "table", "tr", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "section"];
 
 const TEXTS = {
     en: {
@@ -65,7 +66,55 @@ function questionType(block, options) {
 
 // read a node's text, empty string when the node is missing
 function nodeText(node) {
-    return node ? node.innerText.trim() : "";
+    if (!node) return "";
+    return tidyLines(collectText(node));
+}
+
+// walk the DOM by hand: innerText of KaTeX repeats every formula three times
+function collectText(node) {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+
+    const tag = node.tagName.toLowerCase();
+    if (tag === "br") return "\n";
+    if (tag === "script" || tag === "style" || tag === "noscript") return "";
+    if (node.getAttribute("data-testid") === "visually-hidden") return "";
+    if (tag === "img") return imageText(node);
+
+    const formula = mathSource(node);
+    if (formula) return "$" + formula + "$";
+
+    let text = "";
+    for (const child of node.childNodes) text += collectText(child);
+    return BLOCK_TAGS.includes(tag) ? "\n" + text + "\n" : text;
+}
+
+// LaTeX source of a formula, empty when the node is not rendered math
+function mathSource(node) {
+    const tag = node.tagName.toLowerCase();
+    if (!node.classList.contains("katex") && tag !== "mjx-container") return "";
+    const annotation = node.querySelector('annotation[encoding="application/x-tex"]');
+    const source = annotation ? annotation.textContent : node.getAttribute("data-latex") || "";
+    return source.trim();
+}
+
+// markdown picture with the real URL, so a diagram survives the paste
+function imageText(node) {
+    const alt = (node.getAttribute("alt") || "").trim();
+    const src = node.currentSrc || node.src || "";
+    if (!src) return alt ? "[image: " + alt + "]" : "";
+    if (src.startsWith("data:")) return "[embedded image" + (alt ? ": " + alt : "") + "]";
+    return "![" + alt + "](" + src + ")";
+}
+
+// drop the blank lines the block walk leaves behind, keeping at most one
+function tidyLines(text) {
+    const kept = [];
+    for (const raw of text.replace(/\r/g, "").split("\n")) {
+        const line = raw.replace(/[ \t\u00a0]+/g, " ").trim();
+        if (line.length > 0 || kept[kept.length - 1] !== "") kept.push(line);
+    }
+    return kept.join("\n").trim();
 }
 
 // turn one page block into a question + options object

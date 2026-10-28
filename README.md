@@ -46,6 +46,7 @@ By converting questions into structured text instead of relying on screenshots, 
 - **Auto Copy:** Automatically copies questions to the clipboard when a supported assignment page loads.
 - **Manual Copy:** Copies questions on demand through a button in the extension popup.
 - **Structured JSON:** Organizes questions, answer choices, and question types into clean, readable JSON.
+- **Math and Diagrams:** Formulas are copied as their LaTeX source between `$` signs, and pictures are copied as markdown image links that point to the original file, so questions containing equations or figures are not lost.
 - **LLM-Friendly Workflow:** Makes extracted text easy to paste into different LLMs or personal note-taking tools, without requiring screenshots.
 - **Bilingual Interface:** Supports English and Vietnamese across the popup and in-page notifications.
 - **Theme Support:** Follows the system theme or allows manual Light/Dark selection.
@@ -103,6 +104,24 @@ Recognized question types:
 - `essay`
 - `text_input`
 - `code_expression`
+
+Questions that contain formulas or pictures are copied the same way, with the formula source and the image address kept inline:
+
+```json
+[
+  {
+    "questionNumber": 3,
+    "type": "single_answer",
+    "question": "Are the following vectors linearly independent?\n\n$\\mathbf{a} = \\begin{bmatrix} 1 \\\\ 0 \\\\ 1 \\end{bmatrix}$, $\\mathbf{b} = \\begin{bmatrix} 2 \\\\ -1 \\\\ 1 \\end{bmatrix}$\n\n![](https://d3c33hcgiwev3.cloudfront.net/imageassetproxy.v1/abc123_diagram.png)",
+    "options": [
+      "Yes",
+      "No"
+    ]
+  }
+]
+```
+
+The image address belongs to Coursera's content delivery network, which serves the file only to a signed-in session, so opening a copied link works in a browser that is logged in to the course.
 
 The output can be pasted into compatible LLM interfaces, text editors, or note-taking applications for further study and review.
 
