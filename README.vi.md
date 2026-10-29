@@ -72,7 +72,6 @@ Nhấn vào biểu tượng tiện ích trên thanh công cụ để truy cập 
 | Thiết lập | Mô tả |
 | :--- | :--- |
 | **Auto copy** | Tự động sao chép câu hỏi khi trang bài học hoặc bài tập được hỗ trợ tải xong. |
-| **Hoàn thành video bài giảng** | Bật hoặc tắt tính năng hoàn thành video bài giảng. Mặc định là tắt. |
 | **Language** | Chuyển đổi ngôn ngữ giao diện và thông báo giữa tiếng Anh và tiếng Việt. |
 | **Theme** | Lựa chọn giao diện Theo hệ thống, Sáng hoặc Tối. |
 | **Copy this page** | Sao chép thủ công câu hỏi từ tab đang hoạt động. |

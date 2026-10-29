@@ -15,15 +15,12 @@ const STRINGS = {
     blocked: "Clipboard blocked: click the page, then copy again.",
     noQuestions: "No question is visible on this page yet. Wait for it to load, then copy again.",
     wrongPage: "Current tab is not a Coursera lesson page, or reload it after installing.",
-    videoFeature: "Lecture video completion",
-    videoHint: "Mark the lecture videos of this course as completed.",
     completeVideosButton: "Complete lecture videos",
     completeVideosBusy: "Completing…",
     videoStarting: "Looking for the lecture videos of this course…",
     videoRunning: (params) => `Completed ${params.done} of ${params.total} lecture videos.`,
     videoDone: (params) => `Completed ${params.completed} of ${params.total} lecture videos. Reload the page to see the checkmarks.`,
     videoPartial: (params) => `Completed ${params.completed} of ${params.total} lecture videos. ${params.failed} still need attention.`,
-    videoDisabled: "Turn on lecture video completion first.",
     videoBusy: "Lecture video completion is already running.",
     videoNone: "No lecture videos were found in this course.",
     videoNotCourse: "Open a Coursera course page first.",
@@ -48,15 +45,12 @@ const STRINGS = {
     blocked: "Bảng nhớ tạm bị chặn: click vào trang rồi sao chép lại.",
     noQuestions: "Trang này chưa hiển thị câu hỏi nào. Đợi trang tải xong rồi sao chép lại.",
     wrongPage: "Tab hiện tại không phải trang bài tập Coursera, hoặc reload trang sau khi cài.",
-    videoFeature: "Hoàn thành video bài giảng",
-    videoHint: "Đánh dấu các video bài giảng của khoá học này là đã hoàn thành.",
     completeVideosButton: "Hoàn thành video bài giảng",
     completeVideosBusy: "Đang hoàn thành…",
     videoStarting: "Đang tìm video bài giảng của khoá học này…",
     videoRunning: (params) => `Đã hoàn thành ${params.done}/${params.total} video bài giảng.`,
     videoDone: (params) => `Đã hoàn thành ${params.completed}/${params.total} video bài giảng. Reload trang để thấy dấu tick.`,
     videoPartial: (params) => `Đã hoàn thành ${params.completed}/${params.total} video bài giảng. ${params.failed} video chưa được.`,
-    videoDisabled: "Hãy bật hoàn thành video bài giảng trước.",
     videoBusy: "Hoàn thành video bài giảng đang chạy.",
     videoNone: "Không tìm thấy video bài giảng nào trong khoá học này.",
     videoNotCourse: "Hãy mở một trang khoá học Coursera trước.",
@@ -82,7 +76,6 @@ const CHEVRON = '<svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="cu
 
 const elements = {
   autoCopy: document.getElementById("autoCopy"),
-  videoCompletion: document.getElementById("videoCompletion"),
   languagePicker: document.getElementById("languagePicker"),
   themePicker: document.getElementById("themePicker"),
   copyNow: document.getElementById("copyNow"),
@@ -91,7 +84,7 @@ const elements = {
   status: document.getElementById("status")
 };
 
-let settings = { autoCopy: false, videoCompletion: false, language: "en", theme: "system" };
+let settings = { autoCopy: false, language: "en", theme: "system" };
 let lastStatus = { key: "idle", params: 0, kind: "default" };
 let videoPolling = false;
 const pickers = [];
@@ -237,7 +230,6 @@ function applyLanguage() {
     if (typeof value === "string") node.textContent = value;
   });
   elements.autoCopy.setAttribute("aria-label", text.autoCopy);
-  elements.videoCompletion.setAttribute("aria-label", text.videoFeature);
   if (!elements.copyNow.disabled) elements.copyNow.textContent = text.copyButton;
   if (!elements.completeVideos.disabled) elements.completeVideos.textContent = text.completeVideosButton;
   pickers.forEach((picker) => picker.refresh());
@@ -251,15 +243,13 @@ async function saveSettings() {
 
 // read the settings and build the two dropdowns when the popup opens
 async function initialize() {
-  const stored = await chrome.storage.local.get(["autoCopy", "videoCompletion", "language", "theme"]);
+  const stored = await chrome.storage.local.get(["autoCopy", "language", "theme"]);
   settings = {
     autoCopy: stored.autoCopy === true,
-    videoCompletion: stored.videoCompletion === true,
     language: STRINGS[stored.language] ? stored.language : "en",
     theme: ["system", "light", "dark"].includes(stored.theme) ? stored.theme : "system"
   };
   elements.autoCopy.checked = settings.autoCopy;
-  elements.videoCompletion.checked = settings.videoCompletion;
   elements.badge.textContent = "v" + chrome.runtime.getManifest().version;
 
   buildPicker(elements.languagePicker, languageOptions,
@@ -314,7 +304,6 @@ function showVideoState(state) {
   else if (state.code === "running") setStatus("videoRunning", params);
   else if (state.code === "done") setStatus("videoDone", params);
   else if (state.code === "partial") setStatus("videoPartial", params, "warn");
-  else if (state.code === "disabled") setStatus("videoDisabled", 0, "warn");
   else if (state.code === "busy") setStatus("videoBusy", 0, "warn");
   else if (state.code === "none") setStatus("videoNone", 0, "warn");
   else if (state.code === "notCourse") setStatus("videoNotCourse", 0, "error");
@@ -373,11 +362,6 @@ elements.autoCopy.addEventListener("change", async () => {
   await saveSettings();
 });
 
-elements.videoCompletion.addEventListener("change", async () => {
-  settings.videoCompletion = elements.videoCompletion.checked;
-  await saveSettings();
-});
-
 elements.copyNow.addEventListener("click", async () => {
   elements.copyNow.disabled = true;
   elements.copyNow.textContent = strings().copyButtonBusy;
@@ -401,10 +385,6 @@ elements.copyNow.addEventListener("click", async () => {
 });
 
 elements.completeVideos.addEventListener("click", () => {
-  if (!settings.videoCompletion) {
-    setStatus("videoDisabled", 0, "warn");
-    return;
-  }
   startVideoRun();
 });
 

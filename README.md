@@ -72,7 +72,6 @@ Click the extension icon in the toolbar to access the configuration options.
 | Setting | Description |
 | :--- | :--- |
 | **Auto copy** | Automatically copies questions when a supported lesson or assignment page loads. |
-| **Lecture video completion** | Turns the lecture video completion on or off. It is off by default. |
 | **Language** | Switches the interface and in-page notifications between English and Vietnamese. |
 | **Theme** | Selects Follow system, Light, or Dark theme. |
 | **Copy this page** | Manually copies questions from the current active tab. |

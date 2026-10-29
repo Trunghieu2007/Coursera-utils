@@ -7,8 +7,8 @@
 // verified by reading the item progress back, so an HTTP 200 alone is never treated
 // as success.
 //
-// The module is off by default. The popup stores the videoCompletion flag, and the
-// module refuses to run while that flag is not set.
+// The module does nothing on its own. It only runs when the popup asks it to,
+// so the button in the popup is the single way to start a run.
 
 const VIDEO_RETRY_DELAY = 8000;
 const VIDEO_MAX_ATTEMPTS = 5;
@@ -24,7 +24,6 @@ const VIDEO_TEXTS = {
         none: "No lecture videos were found in this course.",
         notCourse: "Open a Coursera course page first.",
         notLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
-        disabled: "Lecture video completion is turned off.",
         busy: "Lecture video completion is already running."
     },
     vi: {
@@ -35,12 +34,10 @@ const VIDEO_TEXTS = {
         none: "Không tìm thấy video bài giảng nào trong khoá học này.",
         notCourse: "Hãy mở một trang khoá học Coursera trước.",
         notLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
-        disabled: "Tính năng hoàn thành video bài giảng đang tắt.",
         busy: "Hoàn thành video bài giảng đang chạy."
     }
 };
 
-let videoEnabled = false;
 let videoRunning = false;
 let videoLanguage = "en";
 let videoState = { phase: "idle", code: "idle", total: 0, done: 0, completed: 0, failed: 0, note: "" };
@@ -274,10 +271,6 @@ async function runVideoCompletion() {
 // start the run in the background, the popup follows the state on its own
 function startVideoCompletion() {
     const texts = videoTexts();
-    if (!videoEnabled) {
-        videoState = { phase: "error", code: "disabled", total: 0, done: 0, completed: 0, failed: 0, note: texts.disabled };
-        return Promise.resolve(videoState);
-    }
     if (videoRunning) {
         videoState = {
             phase: "running",
@@ -308,10 +301,9 @@ function notify(text, isError) {
     if (typeof showToast === "function") showToast(text, isError);
 }
 
-// read the feature flag and follow it while the page stays open
-function loadVideoFlag() {
-    return chrome.storage.local.get(["videoCompletion", "language"]).then((stored) => {
-        videoEnabled = stored.videoCompletion === true;
+// read the saved language
+function loadVideoLanguage() {
+    return chrome.storage.local.get(["language"]).then((stored) => {
         videoLanguage = VIDEO_TEXTS[stored.language] ? stored.language : "en";
     });
 }
@@ -329,11 +321,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return false;
 });
 
-// keep the flag and the language in sync with the popup
+// keep the language in sync with the popup
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    if (changes.videoCompletion) videoEnabled = changes.videoCompletion.newValue === true;
     if (changes.language && VIDEO_TEXTS[changes.language.newValue]) videoLanguage = changes.language.newValue;
 });
 
-loadVideoFlag();
+loadVideoLanguage();
