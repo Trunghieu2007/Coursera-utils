@@ -278,7 +278,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ ok: true, url: window.location.href });
         return true;
     }
-    return true;
+    // the video module has its own listener, so this one must not hold the channel
+    return false;
 });
 
 // update settings as soon as the popup changes them, no page reload needed

@@ -50,7 +50,8 @@ Thay vì phải chụp ảnh màn hình, tiện ích chuyển câu hỏi thành 
 - **Tương thích với nhiều LLM:** Giúp bạn dễ dàng dán nội dung đã trích xuất vào các mô hình ngôn ngữ lớn hoặc công cụ ghi chú mà không cần sử dụng ảnh chụp màn hình.
 - **Hỗ trợ song ngữ:** Hỗ trợ tiếng Anh và tiếng Việt trên giao diện popup lẫn các thông báo trực tiếp trên trang.
 - **Tùy chỉnh giao diện:** Tự động theo giao diện hệ thống hoặc cho phép lựa chọn thủ công chế độ Sáng/Tối.
-- **Xử lý cục bộ:** Toàn bộ thao tác được thực hiện trực tiếp trong trình duyệt, không gửi yêu cầu mạng ra bên ngoài.
+- **Hoàn thành video bài giảng:** Đánh dấu các video bài giảng của khoá học đang mở là đã hoàn thành. Tiện ích đọc danh sách bài học, sau đó gửi đúng các sự kiện phát video mà trình phát của trang web tự gửi, từng video một, rồi kiểm tra lại câu trả lời của Coursera trước khi tính là hoàn thành.
+- **Không dùng máy chủ bên thứ ba:** Không có gì được gửi ra ngoài Coursera. Phần sao chép câu hỏi hoạt động hoàn toàn trong trang, còn phần hoàn thành video gọi API của chính Coursera bằng phiên đăng nhập của bạn.
 
 ---
 
@@ -71,9 +72,11 @@ Nhấn vào biểu tượng tiện ích trên thanh công cụ để truy cập 
 | Thiết lập | Mô tả |
 | :--- | :--- |
 | **Auto copy** | Tự động sao chép câu hỏi khi trang bài học hoặc bài tập được hỗ trợ tải xong. |
+| **Hoàn thành video bài giảng** | Bật hoặc tắt tính năng hoàn thành video bài giảng. Mặc định là tắt. |
 | **Language** | Chuyển đổi ngôn ngữ giao diện và thông báo giữa tiếng Anh và tiếng Việt. |
 | **Theme** | Lựa chọn giao diện Theo hệ thống, Sáng hoặc Tối. |
 | **Copy this page** | Sao chép thủ công câu hỏi từ tab đang hoạt động. |
+| **Complete lecture videos** | Đánh dấu các video bài giảng của khoá học trong tab hiện tại là đã hoàn thành. |
 
 ---
 
@@ -134,6 +137,7 @@ icons/             Các tệp biểu tượng tiện ích
 pics/              Hình ảnh xem trước giao diện
 manifest.json      Tệp cấu hình tiện ích (MV3)
 content.js         Phân tích DOM, xử lý clipboard và thông báo
+video.js           Module hoàn thành video bài giảng
 popup.html         Cấu trúc giao diện popup
 popup.css          Định dạng giao diện popup
 popup.js           Xử lý logic popup và lưu cấu hình
@@ -152,6 +156,12 @@ Tôi hướng đến việc giữ cho dự án luôn được cập nhật. Các
 Nếu gặp lỗi hoặc có ý tưởng cải tiến, vui lòng tạo **Pull Request**, kèm theo thông tin liên quan để tôi có thể điều tra và tìm hướng xử lý.
 
 Mọi đóng góp, đề xuất và phản hồi đều được hoan nghênh.
+
+---
+
+## Ghi chú
+
+Tính năng hoàn thành video bài giảng đánh dấu video là đã hoàn thành mà không cần xem. Đây là cách tự động hoá việc làm bài trong khoá học và không đáp ứng được Quy tắc Danh dự Coursera, vì vậy chỉ dùng khi nơi đó cho phép. Dự án này nhằm mục đích học tập và nghiên cứu, không ủng hộ việc gian lận, và không đi kèm hỗ trợ: nếu một lần chạy không khởi động được hoặc để lại trang khoá học ở trạng thái lỗi thì bạn tự xử lý.
 
 ---
 

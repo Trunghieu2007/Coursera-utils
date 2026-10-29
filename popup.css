@@ -301,6 +301,17 @@ body {
   cursor: default;
 }
 
+.btn.ghost {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--fg);
+}
+
+.btn.ghost:hover {
+  border-color: var(--fg);
+  opacity: 1;
+}
+
 .status {
   min-height: 15px;
   margin: 2px 0 0;

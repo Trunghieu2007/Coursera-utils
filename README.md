@@ -50,7 +50,8 @@ By converting questions into structured text instead of relying on screenshots, 
 - **LLM-Friendly Workflow:** Makes extracted text easy to paste into different LLMs or personal note-taking tools, without requiring screenshots.
 - **Bilingual Interface:** Supports English and Vietnamese across the popup and in-page notifications.
 - **Theme Support:** Follows the system theme or allows manual Light/Dark selection.
-- **Local Execution:** All operations run locally within the browser without sending external network requests.
+- **Lecture Video Completion:** Marks the lecture videos of the course you are on as completed. It reads the course outline, then sends the playback events the web player itself would send, one lecture at a time, and checks what Coursera answers back before it counts a lecture as done.
+- **No Third-Party Servers:** Nothing leaves Coursera. The copy tool works entirely inside the page, and the video completion calls Coursera's own API with your own signed-in session.
 
 ---
 
@@ -71,9 +72,11 @@ Click the extension icon in the toolbar to access the configuration options.
 | Setting | Description |
 | :--- | :--- |
 | **Auto copy** | Automatically copies questions when a supported lesson or assignment page loads. |
+| **Lecture video completion** | Turns the lecture video completion on or off. It is off by default. |
 | **Language** | Switches the interface and in-page notifications between English and Vietnamese. |
 | **Theme** | Selects Follow system, Light, or Dark theme. |
 | **Copy this page** | Manually copies questions from the current active tab. |
+| **Complete lecture videos** | Marks the lecture videos of the course in the current tab as completed. |
 
 ---
 
@@ -134,6 +137,7 @@ icons/             Extension icon files
 pics/              Interface preview images
 manifest.json      Manifest configuration (MV3)
 content.js         DOM parsing, clipboard operations, and notifications
+video.js           Lecture video completion module
 popup.html         Popup structure
 popup.css          Popup styles
 popup.js           Popup logic and settings storage
@@ -154,6 +158,12 @@ If you encounter a bug or have an idea for an improvement, please submit a **Pul
 Contributions, suggestions, and feedback are welcome.
 
 Have fun!
+
+---
+
+## Notes
+
+The lecture video completion marks videos as completed without watching them. That is an automated way of finishing course work, and it does not meet the Coursera Honor Code, so use it only where that is allowed. This project is for education and research, it does not condone cheating, and it comes with no support: if a run fails to start or leaves a course page in a bad state, that is yours to handle.
 
 ---
 
