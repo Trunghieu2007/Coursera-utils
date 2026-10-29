@@ -26,6 +26,18 @@ const STRINGS = {
     videoNotCourse: "Open a Coursera course page first.",
     videoNotLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
     videoFailed: "The run failed. Check the browser console for the reason.",
+    completeReadingsButton: "Complete readings",
+    completeReadingsBusy: "Completing…",
+    readingStarting: "Looking for the readings of this course…",
+    readingRunning: (params) => `Completed ${params.done} of ${params.total} readings.`,
+    readingDone: (params) => `Completed ${params.completed} of ${params.total} readings. Reload the page to see the checkmarks.`,
+    readingPartial: (params) => `Completed ${params.completed} of ${params.total} readings. ${params.failed} still need attention.`,
+    readingUnverified: (params) => `${params.completed} of ${params.total} readings are confirmed, ${params.unverified} could not be read back.`,
+    readingBusy: "Reading completion is already running.",
+    readingNone: "No reading material was found in this course.",
+    readingNotCourse: "Open a Coursera course page first.",
+    readingNotLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
+    readingFailed: "The run failed. Check the browser console for the reason.",
     themeNames: { system: "Follow system", light: "Light", dark: "Dark" },
     languageNames: { en: "English", vi: "Tiếng Việt" }
   },
@@ -56,6 +68,18 @@ const STRINGS = {
     videoNotCourse: "Hãy mở một trang khoá học Coursera trước.",
     videoNotLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
     videoFailed: "Lần chạy thất bại. Xem console của trình duyệt để biết lý do.",
+    completeReadingsButton: "Hoàn thành bài đọc",
+    completeReadingsBusy: "Đang hoàn thành…",
+    readingStarting: "Đang tìm bài đọc của khoá học này…",
+    readingRunning: (params) => `Đã hoàn thành ${params.done}/${params.total} bài đọc.`,
+    readingDone: (params) => `Đã hoàn thành ${params.completed}/${params.total} bài đọc. Reload trang để thấy dấu tick.`,
+    readingPartial: (params) => `Đã hoàn thành ${params.completed}/${params.total} bài đọc. ${params.failed} bài chưa được.`,
+    readingUnverified: (params) => `${params.completed}/${params.total} bài đọc đã xác minh, còn ${params.unverified} bài đã ghi nhưng không đọc lại được.`,
+    readingBusy: "Hoàn thành bài đọc đang chạy.",
+    readingNone: "Không tìm thấy bài đọc nào trong khoá học này.",
+    readingNotCourse: "Hãy mở một trang khoá học Coursera trước.",
+    readingNotLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
+    readingFailed: "Lần chạy thất bại. Xem console của trình duyệt để biết lý do.",
     themeNames: { system: "Theo hệ thống", light: "Sáng", dark: "Tối" },
     languageNames: { en: "English", vi: "Tiếng Việt" }
   }
@@ -80,6 +104,7 @@ const elements = {
   themePicker: document.getElementById("themePicker"),
   copyNow: document.getElementById("copyNow"),
   completeVideos: document.getElementById("completeVideos"),
+  completeReadings: document.getElementById("completeReadings"),
   badge: document.getElementById("badge"),
   status: document.getElementById("status")
 };
@@ -87,6 +112,7 @@ const elements = {
 let settings = { autoCopy: false, language: "en", theme: "system" };
 let lastStatus = { key: "idle", params: 0, kind: "default" };
 let videoPolling = false;
+let readingPolling = false;
 const pickers = [];
 
 // string table for the current language
@@ -232,6 +258,7 @@ function applyLanguage() {
   elements.autoCopy.setAttribute("aria-label", text.autoCopy);
   if (!elements.copyNow.disabled) elements.copyNow.textContent = text.copyButton;
   if (!elements.completeVideos.disabled) elements.completeVideos.textContent = text.completeVideosButton;
+  if (!elements.completeReadings.disabled) elements.completeReadings.textContent = text.completeReadingsButton;
   pickers.forEach((picker) => picker.refresh());
   renderStatus();
 }
@@ -350,6 +377,66 @@ async function startVideoRun() {
   elements.completeVideos.textContent = strings().completeVideosButton;
 }
 
+// translate the state the content script reports
+function showReadingState(state) {
+  const params = {
+    done: state.done || 0,
+    total: state.total || 0,
+    completed: state.completed || 0,
+    unverified: state.unverified || 0,
+    failed: state.failed || 0
+  };
+  if (state.code === "starting") setStatus("readingStarting");
+  else if (state.code === "running") setStatus("readingRunning", params);
+  else if (state.code === "done") setStatus("readingDone", params);
+  else if (state.code === "partial") setStatus("readingPartial", params, "warn");
+  else if (state.code === "unverified") setStatus("readingUnverified", params, "warn");
+  else if (state.code === "busy") setStatus("readingBusy", 0, "warn");
+  else if (state.code === "none") setStatus("readingNone", 0, "warn");
+  else if (state.code === "notCourse") setStatus("readingNotCourse", 0, "error");
+  else if (state.code === "notLoggedIn") setStatus("readingNotLoggedIn", 0, "error");
+  else setStatus("readingFailed", 0, "error");
+}
+
+// follow the run while the popup stays open
+async function followReadingRun() {
+  if (readingPolling) return;
+  readingPolling = true;
+  try {
+    while (true) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      const state = await sendToActiveTab({ action: "readingStatus" }).catch(() => null);
+      if (!state) break;
+      showReadingState(state);
+      if (state.phase !== "running") break;
+    }
+  } finally {
+    readingPolling = false;
+    elements.completeReadings.disabled = false;
+    elements.completeReadings.textContent = strings().completeReadingsButton;
+  }
+}
+
+// start the reading completion and watch its progress
+async function startReadingRun() {
+  elements.completeReadings.disabled = true;
+  elements.completeReadings.textContent = strings().completeReadingsBusy;
+  setStatus("readingStarting");
+  try {
+    const response = await sendToActiveTab({ action: "completeReadings" });
+    if (!response) throw new Error("no answer");
+    showReadingState(response);
+    if (response.phase === "running") {
+      followReadingRun();
+      return;
+    }
+  } catch {
+    setStatus("readingNotCourse", 0, "error");
+  }
+  elements.completeReadings.disabled = false;
+  elements.completeReadings.textContent = strings().completeReadingsButton;
+}
+
 document.addEventListener("click", (event) => {
   if (event.target.closest(".picker")) return;
   pickers.forEach((picker) => picker.close());
@@ -386,6 +473,10 @@ elements.copyNow.addEventListener("click", async () => {
 
 elements.completeVideos.addEventListener("click", () => {
   startVideoRun();
+});
+
+elements.completeReadings.addEventListener("click", () => {
+  startReadingRun();
 });
 
 initialize();
