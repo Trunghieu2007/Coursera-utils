@@ -2,7 +2,7 @@ const STRINGS = {
   en: {
     docTitle: "Copy Questions",
     title: "Copy Questions",
-    subtitle: "Copy the visible question text to your clipboard.",
+    subtitle: "Copy the visible questions, with their options, code and formulas, to your clipboard.",
     autoCopy: "Auto copy",
     autoCopyHint: "Copy questions when a lesson page opens.",
     language: "Language",
@@ -19,32 +19,73 @@ const STRINGS = {
     completeVideosBusy: "Completing…",
     videoStarting: "Looking for the lecture videos of this course…",
     videoRunning: (params) => `Completed ${params.done} of ${params.total} lecture videos.`,
-    videoDone: (params) => `Completed ${params.completed} of ${params.total} lecture videos. Reload the page to see the checkmarks.`,
-    videoPartial: (params) => `Completed ${params.completed} of ${params.total} lecture videos. ${params.failed} still need attention.`,
+    videoDone: (params) => `Completed ${params.completed} of ${params.total} lecture videos. Reload the page to see the checkmarks.` + skippedTail("videoSkipped", params),
+    videoPartial: (params) => `Completed ${params.completed} of ${params.total} lecture videos. ${params.failed} still ${params.failed === 1 ? "needs" : "need"} attention.` + skippedTail("videoSkipped", params),
+    videoSkipped: (params) => ` ${params.skipped} locked lecture${params.skipped === 1 ? " was left alone." : "s were left alone."}`,
     videoBusy: "Lecture video completion is already running.",
     videoNone: "No lecture videos were found in this course.",
     videoNotCourse: "Open a Coursera course page first.",
     videoNotLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
+    videoIdentity: "The page and Coursera name two different accounts, so nothing was marked. Reload the page.",
+    videoStopped: "The page changed while the run was going on, so the rest of the list was left alone.",
     videoFailed: "The run failed. Check the browser console for the reason.",
     completeReadingsButton: "Complete readings",
     completeReadingsBusy: "Completing…",
     readingStarting: "Looking for the readings of this course…",
     readingRunning: (params) => `Completed ${params.done} of ${params.total} readings.`,
-    readingDone: (params) => `Completed ${params.completed} of ${params.total} readings. Reload the page to see the checkmarks.`,
-    readingPartial: (params) => `Completed ${params.completed} of ${params.total} readings. ${params.failed} still need attention.`,
-    readingUnverified: (params) => `${params.completed} of ${params.total} readings are confirmed, ${params.unverified} could not be read back.`,
+    readingDone: (params) => `Completed ${params.completed} of ${params.total} readings. Reload the page to see the checkmarks.` + skippedTail("readingSkipped", params),
+    readingPartial: (params) => `Completed ${params.completed} of ${params.total} readings. ${params.failed} still ${params.failed === 1 ? "needs" : "need"} attention.` + skippedTail("readingSkipped", params),
+    readingUnverified: (params) => `${params.completed} of ${params.total} readings are confirmed, ${params.unverified} could not be read back.` + skippedTail("readingSkipped", params),
+    readingSkipped: (params) => ` ${params.skipped} locked reading${params.skipped === 1 ? " was left alone." : "s were left alone."}`,
     readingBusy: "Reading completion is already running.",
     readingNone: "No reading material was found in this course.",
     readingNotCourse: "Open a Coursera course page first.",
     readingNotLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
+    readingIdentity: "The page and Coursera name two different accounts, so nothing was marked. Reload the page.",
+    readingStopped: "The page changed while the run was going on, so the rest of the list was left alone.",
     readingFailed: "The run failed. Check the browser console for the reason.",
+    completeDiscussionsButton: "Complete discussions",
+    completeDiscussionsBusy: "Replying…",
+    discussionStarting: "Looking for the discussion prompts of this course…",
+    discussionRunning: (params) => `Replied to ${params.done} of ${params.total} discussion prompts.`,
+    discussionDone: (params) => `Replied to ${params.completed} of ${params.total} discussion prompts. Reload the page to see them.` + skippedTail("discussionSkipped", params) + answeredTail("discussionAnswered", params),
+    discussionPartial: (params) => `Replied to ${params.completed} of ${params.total} discussion prompts. ${params.failed} still ${params.failed === 1 ? "needs" : "need"} attention.` + skippedTail("discussionSkipped", params) + answeredTail("discussionAnswered", params),
+    discussionUnverified: (params) => `${params.completed} of ${params.total} replies are confirmed, ${params.unverified} could not be read back.` + skippedTail("discussionSkipped", params) + answeredTail("discussionAnswered", params),
+    discussionSkipped: (params) => ` ${params.skipped} locked prompt${params.skipped === 1 ? " was left alone." : "s were left alone."}`,
+    discussionAnswered: (params) => ` ${params.answered} prompt${params.answered === 1 ? "" : "s"} already had your answer.`,
+    discussionBusy: "Discussion reply completion is already running.",
+    discussionNone: "No discussion prompt was found in this course.",
+    discussionNoText: "Type the reply you want to send before running the discussion step.",
+    discussionNotCourse: "Open a Coursera course page first.",
+    discussionNotLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
+    discussionIdentity: "The page and Coursera name two different accounts, so nothing was posted. Reload the page.",
+    discussionStopped: "The page changed while the run was going on, so the rest of the list was left alone.",
+    discussionFailed: "The run failed. Check the browser console for the reason.",
+    discussionReply: "Discussion reply",
+    discussionReplyHint: "This exact text is posted to every discussion prompt you have not answered yet.",
+    completePluginsButton: "Complete practice items",
+    completePluginsBusy: "Completing…",
+    pluginStarting: "Looking for the practice items of this course…",
+    pluginRunning: (params) => `Marked ${params.done} of ${params.total} practice items.`,
+    pluginDone: (params) => `Marked ${params.completed} of ${params.total} practice items as done. Reload the page to see the checkmarks.` + skippedTail("pluginSkipped", params) + alreadyTail("pluginAlready", params),
+    pluginPartial: (params) => `Marked ${params.completed} of ${params.total} practice items. ${params.failed} still ${params.failed === 1 ? "needs" : "need"} attention.` + skippedTail("pluginSkipped", params) + alreadyTail("pluginAlready", params),
+    pluginUnverified: (params) => `${params.completed} of ${params.total} items are confirmed, ${params.unverified} could not be read back.` + skippedTail("pluginSkipped", params) + alreadyTail("pluginAlready", params),
+    pluginSkipped: (params) => ` ${params.skipped} locked item${params.skipped === 1 ? " was left alone." : "s were left alone."}`,
+    pluginAlready: (params) => ` ${params.already} item${params.already === 1 ? " was" : "s were"} already done.`,
+    pluginBusy: "Practice item completion is already running.",
+    pluginNone: "No ungraded lab, widget, notebook or app item was found in this course.",
+    pluginNotCourse: "Open a Coursera course page first.",
+    pluginNotLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
+    pluginIdentity: "The page and Coursera name two different accounts, so nothing was marked. Reload the page.",
+    pluginStopped: "The page changed while the run was going on, so the rest of the list was left alone.",
+    pluginFailed: "The run failed. Check the browser console for the reason.",
     themeNames: { system: "Follow system", light: "Light", dark: "Dark" },
     languageNames: { en: "English", vi: "Tiếng Việt" }
   },
   vi: {
     docTitle: "Sao chép câu hỏi",
     title: "Sao chép câu hỏi",
-    subtitle: "Sao chép nội dung câu hỏi đang hiển thị vào bảng nhớ tạm.",
+    subtitle: "Sao chép câu hỏi đang hiển thị, kèm lựa chọn, code và công thức, vào bảng nhớ tạm.",
     autoCopy: "Tự động sao chép",
     autoCopyHint: "Sao chép câu hỏi ngay khi mở trang bài tập.",
     language: "Ngôn ngữ",
@@ -61,25 +102,66 @@ const STRINGS = {
     completeVideosBusy: "Đang hoàn thành…",
     videoStarting: "Đang tìm video bài giảng của khoá học này…",
     videoRunning: (params) => `Đã hoàn thành ${params.done}/${params.total} video bài giảng.`,
-    videoDone: (params) => `Đã hoàn thành ${params.completed}/${params.total} video bài giảng. Reload trang để thấy dấu tick.`,
-    videoPartial: (params) => `Đã hoàn thành ${params.completed}/${params.total} video bài giảng. ${params.failed} video chưa được.`,
+    videoDone: (params) => `Đã hoàn thành ${params.completed}/${params.total} video bài giảng. Reload trang để thấy dấu tick.` + skippedTail("videoSkipped", params),
+    videoPartial: (params) => `Đã hoàn thành ${params.completed}/${params.total} video bài giảng. ${params.failed} video chưa được.` + skippedTail("videoSkipped", params),
+    videoSkipped: (params) => ` ${params.skipped} bài giảng bị khoá đã được bỏ qua.`,
     videoBusy: "Hoàn thành video bài giảng đang chạy.",
     videoNone: "Không tìm thấy video bài giảng nào trong khoá học này.",
     videoNotCourse: "Hãy mở một trang khoá học Coursera trước.",
     videoNotLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
+    videoIdentity: "Trang và Coursera chỉ hai tài khoản khác nhau, nên không có gì được đánh dấu. Hãy reload trang.",
+    videoStopped: "Trang đã thay đổi khi đang chạy, nên phần còn lại được giữ nguyên.",
     videoFailed: "Lần chạy thất bại. Xem console của trình duyệt để biết lý do.",
     completeReadingsButton: "Hoàn thành bài đọc",
     completeReadingsBusy: "Đang hoàn thành…",
     readingStarting: "Đang tìm bài đọc của khoá học này…",
     readingRunning: (params) => `Đã hoàn thành ${params.done}/${params.total} bài đọc.`,
-    readingDone: (params) => `Đã hoàn thành ${params.completed}/${params.total} bài đọc. Reload trang để thấy dấu tick.`,
-    readingPartial: (params) => `Đã hoàn thành ${params.completed}/${params.total} bài đọc. ${params.failed} bài chưa được.`,
-    readingUnverified: (params) => `${params.completed}/${params.total} bài đọc đã xác minh, còn ${params.unverified} bài đã ghi nhưng không đọc lại được.`,
+    readingDone: (params) => `Đã hoàn thành ${params.completed}/${params.total} bài đọc. Reload trang để thấy dấu tick.` + skippedTail("readingSkipped", params),
+    readingPartial: (params) => `Đã hoàn thành ${params.completed}/${params.total} bài đọc. ${params.failed} bài chưa được.` + skippedTail("readingSkipped", params),
+    readingUnverified: (params) => `${params.completed}/${params.total} bài đọc đã xác minh, còn ${params.unverified} bài đã ghi nhưng không đọc lại được.` + skippedTail("readingSkipped", params),
+    readingSkipped: (params) => ` ${params.skipped} bài đọc bị khoá đã được bỏ qua.`,
     readingBusy: "Hoàn thành bài đọc đang chạy.",
     readingNone: "Không tìm thấy bài đọc nào trong khoá học này.",
     readingNotCourse: "Hãy mở một trang khoá học Coursera trước.",
     readingNotLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
+    readingIdentity: "Trang và Coursera chỉ hai tài khoản khác nhau, nên không có gì được đánh dấu. Hãy reload trang.",
+    readingStopped: "Trang đã thay đổi khi đang chạy, nên phần còn lại được giữ nguyên.",
     readingFailed: "Lần chạy thất bại. Xem console của trình duyệt để biết lý do.",
+    completeDiscussionsButton: "Hoàn thành thảo luận",
+    completeDiscussionsBusy: "Đang trả lời…",
+    discussionStarting: "Đang tìm thảo luận của khoá học này…",
+    discussionRunning: (params) => `Đã trả lời ${params.done}/${params.total} thảo luận.`,
+    discussionDone: (params) => `Đã trả lời ${params.completed}/${params.total} thảo luận. Reload trang để xem.` + skippedTail("discussionSkipped", params) + answeredTail("discussionAnswered", params),
+    discussionPartial: (params) => `Đã trả lời ${params.completed}/${params.total} thảo luận. ${params.failed} thảo luận chưa được.` + skippedTail("discussionSkipped", params) + answeredTail("discussionAnswered", params),
+    discussionUnverified: (params) => `${params.completed}/${params.total} câu trả lời đã xác minh, còn ${params.unverified} câu đã đăng nhưng không đọc lại được.` + skippedTail("discussionSkipped", params) + answeredTail("discussionAnswered", params),
+    discussionSkipped: (params) => ` ${params.skipped} thảo luận bị khoá đã được bỏ qua.`,
+    discussionAnswered: (params) => ` ${params.answered} thảo luận đã có câu trả lời của bạn.`,
+    discussionBusy: "Hoàn thành thảo luận đang chạy.",
+    discussionNone: "Không tìm thấy thảo luận nào trong khoá học này.",
+    discussionNoText: "Hãy nhập nội dung trả lời trước khi chạy bước thảo luận.",
+    discussionNotCourse: "Hãy mở một trang khoá học Coursera trước.",
+    discussionNotLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
+    discussionIdentity: "Trang và Coursera chỉ hai tài khoản khác nhau, nên không có gì được đăng. Hãy reload trang.",
+    discussionStopped: "Trang đã thay đổi khi đang chạy, nên phần còn lại được giữ nguyên.",
+    discussionFailed: "Lần chạy thất bại. Xem console của trình duyệt để biết lý do.",
+    discussionReply: "Nội dung trả lời thảo luận",
+    discussionReplyHint: "Đúng đoạn này sẽ được đăng vào mọi thảo luận bạn chưa trả lời.",
+    completePluginsButton: "Hoàn thành bài thực hành",
+    completePluginsBusy: "Đang hoàn thành…",
+    pluginStarting: "Đang tìm bài thực hành của khoá học này…",
+    pluginRunning: (params) => `Đã đánh dấu ${params.done}/${params.total} bài thực hành.`,
+    pluginDone: (params) => `Đã đánh dấu ${params.completed}/${params.total} bài thực hành là đã xong. Reload trang để thấy dấu tick.` + skippedTail("pluginSkipped", params) + alreadyTail("pluginAlready", params),
+    pluginPartial: (params) => `Đã đánh dấu ${params.completed}/${params.total} bài thực hành. ${params.failed} bài chưa được.` + skippedTail("pluginSkipped", params) + alreadyTail("pluginAlready", params),
+    pluginUnverified: (params) => `${params.completed}/${params.total} bài đã xác minh, còn ${params.unverified} bài đã ghi nhưng không đọc lại được.` + skippedTail("pluginSkipped", params) + alreadyTail("pluginAlready", params),
+    pluginSkipped: (params) => ` ${params.skipped} bài bị khoá đã được bỏ qua.`,
+    pluginAlready: (params) => ` ${params.already} bài đã được đánh dấu xong từ trước.`,
+    pluginBusy: "Hoàn thành bài thực hành đang chạy.",
+    pluginNone: "Không tìm thấy bài thực hành, widget, notebook hay mục ứng dụng nào trong khoá học này.",
+    pluginNotCourse: "Hãy mở một trang khoá học Coursera trước.",
+    pluginNotLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
+    pluginIdentity: "Trang và Coursera chỉ hai tài khoản khác nhau, nên không có gì được đánh dấu. Hãy reload trang.",
+    pluginStopped: "Trang đã thay đổi khi đang chạy, nên phần còn lại được giữ nguyên.",
+    pluginFailed: "Lần chạy thất bại. Xem console của trình duyệt để biết lý do.",
     themeNames: { system: "Theo hệ thống", light: "Sáng", dark: "Tối" },
     languageNames: { en: "English", vi: "Tiếng Việt" }
   }
@@ -105,19 +187,46 @@ const elements = {
   copyNow: document.getElementById("copyNow"),
   completeVideos: document.getElementById("completeVideos"),
   completeReadings: document.getElementById("completeReadings"),
+  completeDiscussions: document.getElementById("completeDiscussions"),
+  completePlugins: document.getElementById("completePlugins"),
+  discussionReply: document.getElementById("discussionReply"),
   badge: document.getElementById("badge"),
   status: document.getElementById("status")
 };
 
-let settings = { autoCopy: false, language: "en", theme: "system" };
+// the sentence the reply box starts with, the same pair discussions.js falls back to
+const DEFAULT_REPLY = {
+  en: "Thank you for the prompt. I am working through this week and will keep this in mind.",
+  vi: "Cảm ơn bạn đã đặt câu hỏi. Mình đang học tuần này và sẽ ghi nhớ điều này."
+};
+
+let settings = { autoCopy: false, language: "en", theme: "system", discussionReply: "" };
 let lastStatus = { key: "idle", params: 0, kind: "default" };
 let videoPolling = false;
 let readingPolling = false;
+let discussionPolling = false;
+let pluginPolling = false;
 const pickers = [];
 
 // string table for the current language
 function strings() {
   return STRINGS[settings.language] || STRINGS.en;
+}
+
+// the extra sentence about items the course keeps locked, read from the current table so
+// it changes language together with the rest of the status
+function skippedTail(key, params) {
+  return params.skipped ? strings()[key](params) : "";
+}
+
+// the extra sentence about prompts this account already answered
+function answeredTail(key, params) {
+  return params.answered ? strings()[key](params) : "";
+}
+
+// the extra sentence about practice items Coursera already reports as done
+function alreadyTail(key, params) {
+  return params.already ? strings()[key](params) : "";
 }
 
 // build a custom dropdown with an icon (flag or glyph)
@@ -247,7 +356,7 @@ function applyTheme() {
 }
 
 // translate the whole popup into the chosen language
-function applyLanguage() {
+async function applyLanguage() {
   const text = strings();
   document.documentElement.lang = settings.language;
   document.title = text.docTitle;
@@ -259,6 +368,18 @@ function applyLanguage() {
   if (!elements.copyNow.disabled) elements.copyNow.textContent = text.copyButton;
   if (!elements.completeVideos.disabled) elements.completeVideos.textContent = text.completeVideosButton;
   if (!elements.completeReadings.disabled) elements.completeReadings.textContent = text.completeReadingsButton;
+  if (!elements.completeDiscussions.disabled) elements.completeDiscussions.textContent = text.completeDiscussionsButton;
+
+  // a reply box the student never rewrote follows the interface language, so nobody sends
+  // a sentence in a language they did not choose
+  const written = elements.discussionReply.value.trim();
+  const untouched = Object.values(DEFAULT_REPLY).some((value) => value === written);
+  if (untouched && written !== DEFAULT_REPLY[settings.language]) {
+    settings.discussionReply = DEFAULT_REPLY[settings.language];
+    elements.discussionReply.value = settings.discussionReply;
+    await saveSettings();
+  }
+
   pickers.forEach((picker) => picker.refresh());
   renderStatus();
 }
@@ -270,21 +391,28 @@ async function saveSettings() {
 
 // read the settings and build the two dropdowns when the popup opens
 async function initialize() {
-  const stored = await chrome.storage.local.get(["autoCopy", "language", "theme"]);
+  const stored = await chrome.storage.local.get(["autoCopy", "language", "theme", "discussionReply"]);
   settings = {
     autoCopy: stored.autoCopy === true,
     language: STRINGS[stored.language] ? stored.language : "en",
-    theme: ["system", "light", "dark"].includes(stored.theme) ? stored.theme : "system"
+    theme: ["system", "light", "dark"].includes(stored.theme) ? stored.theme : "system",
+    // an empty box stays empty: it means the student cleared it on purpose
+    discussionReply: typeof stored.discussionReply === "string"
+      ? stored.discussionReply
+      : DEFAULT_REPLY[STRINGS[stored.language] ? stored.language : "en"]
   };
   elements.autoCopy.checked = settings.autoCopy;
+  elements.discussionReply.value = settings.discussionReply;
   elements.badge.textContent = "v" + chrome.runtime.getManifest().version;
+  // a first open also stores the sentence the box shows, so the page and the popup agree
+  await saveSettings();
 
   buildPicker(elements.languagePicker, languageOptions,
     () => settings.language,
     async (value) => {
       settings.language = value;
       await saveSettings();
-      applyLanguage();
+      await applyLanguage();
     });
 
   buildPicker(elements.themePicker, themeOptions,
@@ -297,7 +425,7 @@ async function initialize() {
     });
 
   applyTheme();
-  applyLanguage();
+  await applyLanguage();
 }
 
 // send a message to the content script of the active tab
@@ -325,7 +453,8 @@ function showVideoState(state) {
     done: state.done || 0,
     total: state.total || 0,
     completed: state.completed || 0,
-    failed: state.failed || 0
+    failed: state.failed || 0,
+    skipped: state.skipped || 0
   };
   if (state.code === "starting") setStatus("videoStarting");
   else if (state.code === "running") setStatus("videoRunning", params);
@@ -335,6 +464,8 @@ function showVideoState(state) {
   else if (state.code === "none") setStatus("videoNone", 0, "warn");
   else if (state.code === "notCourse") setStatus("videoNotCourse", 0, "error");
   else if (state.code === "notLoggedIn") setStatus("videoNotLoggedIn", 0, "error");
+  else if (state.code === "identity") setStatus("videoIdentity", 0, "error");
+  else if (state.code === "stopped") setStatus("videoStopped", 0, "warn");
   else setStatus("videoFailed", 0, "error");
 }
 
@@ -384,7 +515,8 @@ function showReadingState(state) {
     total: state.total || 0,
     completed: state.completed || 0,
     unverified: state.unverified || 0,
-    failed: state.failed || 0
+    failed: state.failed || 0,
+    skipped: state.skipped || 0
   };
   if (state.code === "starting") setStatus("readingStarting");
   else if (state.code === "running") setStatus("readingRunning", params);
@@ -395,6 +527,8 @@ function showReadingState(state) {
   else if (state.code === "none") setStatus("readingNone", 0, "warn");
   else if (state.code === "notCourse") setStatus("readingNotCourse", 0, "error");
   else if (state.code === "notLoggedIn") setStatus("readingNotLoggedIn", 0, "error");
+  else if (state.code === "identity") setStatus("readingIdentity", 0, "error");
+  else if (state.code === "stopped") setStatus("readingStopped", 0, "warn");
   else setStatus("readingFailed", 0, "error");
 }
 
@@ -437,6 +571,135 @@ async function startReadingRun() {
   elements.completeReadings.textContent = strings().completeReadingsButton;
 }
 
+// translate the state the content script reports
+function showDiscussionState(state) {
+  const params = {
+    done: state.done || 0,
+    total: state.total || 0,
+    completed: state.completed || 0,
+    unverified: state.unverified || 0,
+    failed: state.failed || 0,
+    skipped: state.skipped || 0,
+    answered: state.answered || 0
+  };
+  if (state.code === "starting") setStatus("discussionStarting");
+  else if (state.code === "running") setStatus("discussionRunning", params);
+  else if (state.code === "done") setStatus("discussionDone", params);
+  else if (state.code === "partial") setStatus("discussionPartial", params, "warn");
+  else if (state.code === "unverified") setStatus("discussionUnverified", params, "warn");
+  else if (state.code === "busy") setStatus("discussionBusy", 0, "warn");
+  else if (state.code === "none") setStatus("discussionNone", 0, "warn");
+  else if (state.code === "noText") setStatus("discussionNoText", 0, "error");
+  else if (state.code === "notCourse") setStatus("discussionNotCourse", 0, "error");
+  else if (state.code === "notLoggedIn") setStatus("discussionNotLoggedIn", 0, "error");
+  else if (state.code === "identity") setStatus("discussionIdentity", 0, "error");
+  else if (state.code === "stopped") setStatus("discussionStopped", 0, "warn");
+  else setStatus("discussionFailed", 0, "error");
+}
+
+// follow the run while the popup stays open
+async function followDiscussionRun() {
+  if (discussionPolling) return;
+  discussionPolling = true;
+  try {
+    while (true) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      const state = await sendToActiveTab({ action: "discussionStatus" }).catch(() => null);
+      if (!state) break;
+      showDiscussionState(state);
+      if (state.phase !== "running") break;
+    }
+  } finally {
+    discussionPolling = false;
+    elements.completeDiscussions.disabled = false;
+    elements.completeDiscussions.textContent = strings().completeDiscussionsButton;
+  }
+}
+
+// start the discussion replies and watch their progress
+async function startDiscussionRun() {
+  elements.completeDiscussions.disabled = true;
+  elements.completeDiscussions.textContent = strings().completeDiscussionsBusy;
+  setStatus("discussionStarting");
+  try {
+    const response = await sendToActiveTab({ action: "completeDiscussions" });
+    if (!response) throw new Error("no answer");
+    showDiscussionState(response);
+    if (response.phase === "running") {
+      followDiscussionRun();
+      return;
+    }
+  } catch {
+    setStatus("discussionNotCourse", 0, "error");
+  }
+  elements.completeDiscussions.disabled = false;
+  elements.completeDiscussions.textContent = strings().completeDiscussionsButton;
+}
+
+// translate the state the content script reports
+function showPluginState(state) {
+  const params = {
+    done: state.done || 0,
+    total: state.total || 0,
+    completed: state.completed || 0,
+    unverified: state.unverified || 0,
+    failed: state.failed || 0,
+    skipped: state.skipped || 0,
+    already: state.already || 0
+  };
+  if (state.code === "starting") setStatus("pluginStarting");
+  else if (state.code === "running") setStatus("pluginRunning", params);
+  else if (state.code === "done") setStatus("pluginDone", params);
+  else if (state.code === "partial") setStatus("pluginPartial", params, "warn");
+  else if (state.code === "unverified") setStatus("pluginUnverified", params, "warn");
+  else if (state.code === "busy") setStatus("pluginBusy", 0, "warn");
+  else if (state.code === "none") setStatus("pluginNone", 0, "warn");
+  else if (state.code === "notCourse") setStatus("pluginNotCourse", 0, "error");
+  else if (state.code === "notLoggedIn") setStatus("pluginNotLoggedIn", 0, "error");
+  else if (state.code === "identity") setStatus("pluginIdentity", 0, "error");
+  else if (state.code === "stopped") setStatus("pluginStopped", 0, "warn");
+  else setStatus("pluginFailed", 0, "error");
+}
+
+// follow the run while the popup stays open
+async function followPluginRun() {
+  if (pluginPolling) return;
+  pluginPolling = true;
+  try {
+    while (true) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      const state = await sendToActiveTab({ action: "pluginStatus" }).catch(() => null);
+      if (!state) break;
+      showPluginState(state);
+      if (state.phase !== "running") break;
+    }
+  } finally {
+    pluginPolling = false;
+    elements.completePlugins.disabled = false;
+    elements.completePlugins.textContent = strings().completePluginsButton;
+  }
+}
+
+// mark the practice items done and watch their progress
+async function startPluginRun() {
+  elements.completePlugins.disabled = true;
+  elements.completePlugins.textContent = strings().completePluginsBusy;
+  setStatus("pluginStarting");
+  try {
+    const response = await sendToActiveTab({ action: "completePlugins" });
+    if (!response) throw new Error("no answer");
+    showPluginState(response);
+    if (response.phase === "running") {
+      followPluginRun();
+      return;
+    }
+  } catch {
+    setStatus("pluginNotCourse", 0, "error");
+  }
+  elements.completePlugins.disabled = false;
+  elements.completePlugins.textContent = strings().completePluginsButton;
+}
+
 document.addEventListener("click", (event) => {
   if (event.target.closest(".picker")) return;
   pickers.forEach((picker) => picker.close());
@@ -477,6 +740,20 @@ elements.completeVideos.addEventListener("click", () => {
 
 elements.completeReadings.addEventListener("click", () => {
   startReadingRun();
+});
+
+elements.completeDiscussions.addEventListener("click", () => {
+  startDiscussionRun();
+});
+
+elements.completePlugins.addEventListener("click", () => {
+  startPluginRun();
+});
+
+// the reply box is saved as it is typed, the page reads it back when a run starts
+elements.discussionReply.addEventListener("input", async () => {
+  settings.discussionReply = elements.discussionReply.value;
+  await saveSettings();
 });
 
 initialize();

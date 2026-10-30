@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Coursera Copy Questions",
-  "version": "1.4.0",
-  "description": "Copy the questions visible on a Coursera lesson page to the clipboard, and mark the videos and readings of a course as completed.",
+  "version": "1.8.0",
+  "description": "Copy Coursera lesson questions with their options and code, and mark its videos, readings, discussions and practice items done.",
   "permissions": [
     "storage",
     "clipboardWrite"
@@ -15,9 +15,21 @@
       "js": [
         "content.js",
         "video.js",
-        "readings.js"
+        "readings.js",
+        "discussions.js",
+        "plugins.js"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://d10o6em2qtnr4q.cloudfront.net/assets/*/index.html"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_start"
     }
   ],
   "action": {

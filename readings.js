@@ -9,6 +9,11 @@
 // same isolated world, so a shared helper name would collide, and keeping the two
 // modules self contained means either one can be dropped without touching the other.
 //
+// The module also guards against a page that is not honest: the account named by the
+// cookie and the account written into the page state have to agree or the run refuses to
+// start, an id that is not a plain id never becomes part of a record key, and a queue that
+// is still running stops when the page moves or another account takes over.
+//
 // Nothing runs on its own. The module only works when the popup asks it to.
 
 const READING_ITEM_DELAY = 700;
@@ -18,11 +23,15 @@ const READING_TEXTS = {
         started: (count) => `Completing ${count} reading${count === 1 ? "" : "s"}, one at a time.`,
         progress: (done, total) => `Completed ${done} of ${total} readings.`,
         finished: (completed, total) => `Completed ${completed} of ${total} readings. Reload the page to see the checkmarks.`,
-        partial: (completed, total, failed) => `Completed ${completed} of ${total} readings. ${failed} still need attention.`,
+        partial: (completed, total, failed) => `Completed ${completed} of ${total} readings. ${failed} still ${failed === 1 ? "needs" : "need"} attention.`,
         unverified: (completed, total, unverified) => `${completed} of ${total} readings are confirmed, ${unverified} could not be read back.`,
         none: "No reading material was found in this course.",
+        failed: "The run stopped with an unexpected error. Check the browser console.",
+        skipped: (count) => ` ${count} locked reading${count === 1 ? "" : "s"} left alone.`,
         notCourse: "Open a Coursera course page first.",
         notLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
+        identity: "The page and Coursera name two different accounts, so nothing was marked. Reload the page.",
+        stopped: "The page changed while the run was going on, so the rest of the list was left alone.",
         busy: "Reading completion is already running."
     },
     vi: {
@@ -32,15 +41,20 @@ const READING_TEXTS = {
         partial: (completed, total, failed) => `Đã hoàn thành ${completed}/${total} bài đọc. ${failed} bài chưa được.`,
         unverified: (completed, total, unverified) => `${completed}/${total} bài đọc đã xác minh, còn ${unverified} bài đã ghi nhưng không đọc lại được.`,
         none: "Không tìm thấy bài đọc nào trong khoá học này.",
+        failed: "Lần chạy dừng vì một lỗi bất ngờ. Xem console của trình duyệt.",
+        skipped: (count) => ` ${count} bài đọc bị khoá được bỏ qua.`,
         notCourse: "Hãy mở một trang khoá học Coursera trước.",
         notLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
+        identity: "Trang và Coursera chỉ hai tài khoản khác nhau, nên không có gì được đánh dấu. Hãy reload trang.",
+        stopped: "Trang đã thay đổi khi đang chạy, nên phần còn lại được giữ nguyên.",
         busy: "Hoàn thành bài đọc đang chạy."
     }
 };
 
 let readingRunning = false;
 let readingLanguage = "en";
-let readingState = { phase: "idle", code: "idle", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, note: "" };
+let readingState = { phase: "idle", code: "idle", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: "" };
+let readingBootstrapData = null;
 
 // pick the string table for the saved language
 function readingTexts() {
@@ -52,10 +66,44 @@ function readingSleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// CSRF token from the course cookie, empty when the cookie is not readable
+// the page writes its own start-up state into an inline script, and that state already
+// holds the signed-in user id and the csrf token, so neither needs a request
+function loadReadingBootstrap() {
+    if (readingBootstrapData) return readingBootstrapData;
+    const found = { userId: "", csrf: "" };
+    const scripts = document.getElementsByTagName("script");
+    for (let i = 0; i < scripts.length; i++) {
+        const text = scripts[i].textContent || "";
+        if (text.indexOf("window.App") < 0) continue;
+        const user = text.match(/"userData"\s*:\s*\{\s*"id"\s*:\s*"?(\d+)"?/);
+        const token = text.match(/"csrfToken"\s*:\s*"([^"\\]+)"/);
+        if (user) found.userId = user[1];
+        if (token && token[1].indexOf("MISSING") < 0) found.csrf = token[1];
+        break;
+    }
+    readingBootstrapData = found;
+    return found;
+}
+
+// a token read out of a cookie or out of the page is only usable if the browser is
+// allowed to put it in a header: a control character makes fetch throw and a cookie that
+// is not valid URL encoding makes decodeURIComponent throw, so both cases drop the token
+// instead of sending a header the server was going to refuse anyway
+function readingUsableToken(value) {
+    let text = String(value || "");
+    try {
+        text = decodeURIComponent(text);
+    } catch {
+        /* keep the raw value when it is not URL encoded */
+    }
+    return /^[\x20-\x7E]*$/.test(text) ? text : "";
+}
+
+// CSRF token from the course cookie, or from the page state when the cookie is hidden
 function readingCsrfToken() {
     const match = document.cookie.match(/(?:^|;\s*)CSRF3-Token=([^;]+)/) || document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
-    return match && match[1] ? match[1] : "";
+    if (match && match[1]) return readingUsableToken(match[1]);
+    return readingUsableToken(loadReadingBootstrap().csrf);
 }
 
 // headers every API call needs
@@ -89,25 +137,37 @@ function readingCourseSlug() {
     return match && match[1] ? match[1] : "";
 }
 
-// the signed-in user id, empty when Coursera does not answer
+// the account the cookie names, "" when the page carries no such cookie
+function readingCookieUser() {
+    const cookie = document.cookie.match(/(?:^|;\s*)c_user=([^;]+)/);
+    return cookie && /^\d+$/.test(cookie[1]) ? cookie[1] : "";
+}
+
+// the signed-in user id, empty when the page and Coursera both stay silent
 async function readingUserId() {
+    const fromPage = loadReadingBootstrap().userId;
+    if (fromPage) return fromPage;
+    const fromCookie = readingCookieUser();
+    if (fromCookie) return fromCookie;
+    // Coursera answers this finder with 405 today, so it is only a last try
     const response = await readingRequest("/api/users.v1?q=me");
     if (response.ok) {
         const data = await readingJson(response);
         const me = data.elements && data.elements[0];
-        if (me && me.id) return String(me.id);
+        if (me && /^\d+$/.test(String(me.id))) return String(me.id);
     }
-    const cookie = document.cookie.match(/(?:^|;\s*)c_user=([^;]+)/);
-    return cookie && cookie[1] ? cookie[1] : "";
+    return "";
 }
 
-// the whole course tree, with the item list Coursera uses for the outline
+// the whole course tree, with the item list Coursera uses for the outline. Locked items
+// are asked for on purpose: they have to be seen to be left alone.
 async function readingSyllabus(slug) {
     const url = "/api/onDemandCourseMaterials.v2/?q=slug&slug=" + encodeURIComponent(slug)
         + "&includes=modules,lessons,items,gradingParameters"
         + "&fields=moduleIds,onDemandCourseMaterialModules.v1(lessonIds,optional),"
         + "onDemandCourseMaterialLessons.v1(elementIds,optional,itemIds),"
-        + "onDemandCourseMaterialItems.v2(name,slug,isLocked,itemClass,timeCommitment,contentSummary)";
+        + "onDemandCourseMaterialItems.v2(name,slug,isLocked,lockedStatus,itemLockedReasonCode,itemClass,timeCommitment,contentSummary)"
+        + "&showLockedItems=true";
     const response = await readingRequest(url);
     if (!response.ok) return null;
     return readingJson(response);
@@ -123,6 +183,13 @@ function readingCourseId(syllabus) {
     return "";
 }
 
+// a reading the course will not let the student open yet
+function readingItemIsLocked(item) {
+    if (item.isLocked === true) return true;
+    const status = String(item.lockedStatus || "").trim().toLowerCase();
+    return status === "locked" || status.indexOf("locked_") === 0 || status.indexOf("hard_locked") === 0;
+}
+
 // the reading supplements of the course, every other item type is left alone
 function supplementItems(syllabus) {
     const linked = syllabus.linked || {};
@@ -132,7 +199,28 @@ function supplementItems(syllabus) {
             const type = item && item.contentSummary ? item.contentSummary.typeName : "";
             return item && item.id && type === "supplement";
         })
-        .map((item) => ({ id: item.id, name: item.name || item.id }));
+        .map((item) => ({ id: item.id, name: item.name || item.id, locked: readingItemIsLocked(item) }));
+}
+
+// a completion record is keyed by user, course and item joined with "~", so a part that
+// carries a separator, a slash or a query mark would put the record somewhere the course
+// never asked for. Coursera's own ids are plain, so a part that is not plain is never
+// sent at all.
+function readingIsKeyId(value) {
+    return /^[A-Za-z0-9._-]{1,64}$/.test(String(value));
+}
+
+// the three parts of one record key, checked together
+function readingKeyIsSafe(userId, courseId, itemId) {
+    return readingIsKeyId(userId) && readingIsKeyId(courseId) && readingIsKeyId(itemId);
+}
+
+// the queue is slow on purpose, so the page can move on half way through. When it does,
+// or when another account takes over the tab, the rest of the list is left alone.
+function readingPageMoved(slug, userId) {
+    if (readingCourseSlug() !== slug) return true;
+    const cookieUser = readingCookieUser();
+    return Boolean(cookieUser) && cookieUser !== String(userId);
 }
 
 // the body the completion endpoint takes, with the user id in the form the record wants
@@ -176,54 +264,92 @@ async function runReadingCompletion() {
     const texts = readingTexts();
     const slug = readingCourseSlug();
     if (!slug) {
-        readingState = { phase: "error", code: "notCourse", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, note: texts.notCourse };
+        readingState = { phase: "error", code: "notCourse", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: texts.notCourse };
         return readingState;
     }
 
     const userId = await readingUserId();
     if (!userId) {
-        readingState = { phase: "error", code: "notLoggedIn", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, note: texts.notLoggedIn };
+        readingState = { phase: "error", code: "notLoggedIn", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: texts.notLoggedIn };
+        return readingState;
+    }
+
+    // the cookie and the page state name the same account on a real course page, so a page
+    // that names a different one is not a page this run should be writing for
+    const cookieUser = readingCookieUser();
+    if (cookieUser && cookieUser !== String(userId)) {
+        readingState = { phase: "error", code: "identity", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: texts.identity };
         return readingState;
     }
 
     const syllabus = await readingSyllabus(slug);
     if (!syllabus) {
-        readingState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, note: texts.notCourse };
+        readingState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: texts.failed };
         return readingState;
     }
 
     const courseId = readingCourseId(syllabus);
-    const readings = supplementItems(syllabus);
-    if (readings.length === 0) {
-        readingState = { phase: "error", code: "none", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, note: texts.none };
+    const allReadings = supplementItems(syllabus);
+    const readings = allReadings.filter((item) => !item.locked);
+    const skipped = allReadings.length - readings.length;
+    if (allReadings.length === 0) {
+        readingState = { phase: "error", code: "none", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: texts.none };
         return readingState;
     }
 
-    readingState = { phase: "running", code: "running", total: readings.length, done: 0, completed: 0, unverified: 0, failed: 0, note: "" };
+    readingState = { phase: "running", code: "running", total: readings.length, done: 0, completed: 0, unverified: 0, failed: 0, skipped, note: "" };
     readingNotify(texts.started(readings.length));
+    let stopped = false;
 
     for (const item of readings) {
-        const result = await completeSupplement(userId, courseId, item);
+        if (readingPageMoved(slug, userId)) {
+            stopped = true;
+            break;
+        }
+        const safe = readingKeyIsSafe(userId, courseId, item.id);
+        // an id the record key cannot hold is reported as a failure and never sent, so a
+        // syllabus that lies about its own ids cannot move a record into another key
+        const result = safe ? await completeSupplement(userId, courseId, item) : "failed";
         readingState.done += 1;
         if (result === "completed") readingState.completed += 1;
         else if (result === "unverified") readingState.unverified += 1;
         else readingState.failed += 1;
 
         readingNotify(texts.progress(readingState.done, readingState.total));
-        await readingSleep(READING_ITEM_DELAY);
+        // only a real write needs the pause, a refused id costs nothing
+        if (safe) await readingSleep(READING_ITEM_DELAY);
     }
 
+    // a run that lost its page or its account keeps what it already confirmed and writes
+    // nothing more
+    if (stopped) {
+        readingState = {
+            phase: "error",
+            code: "stopped",
+            total: readingState.total,
+            done: readingState.done,
+            completed: readingState.completed,
+            unverified: readingState.unverified,
+            failed: readingState.failed,
+            skipped,
+            note: texts.stopped
+        };
+        readingNotify(texts.stopped);
+        return readingState;
+    }
+
+    const tail = skipped > 0 ? texts.skipped(skipped) : "";
     let note;
     let code;
     if (readingState.failed > 0) {
         code = "partial";
-        note = texts.partial(readingState.completed, readingState.total, readingState.failed);
+        note = texts.partial(readingState.completed, readingState.total, readingState.failed) + tail;
     } else if (readingState.unverified > 0) {
         code = "unverified";
-        note = texts.unverified(readingState.completed, readingState.total, readingState.unverified);
+        note = texts.unverified(readingState.completed, readingState.total, readingState.unverified) + tail;
     } else {
         code = "done";
-        note = texts.finished(readingState.completed, readingState.total);
+        note = texts.finished(readingState.completed, readingState.total) + tail;
     }
 
     readingState = {
@@ -234,6 +360,7 @@ async function runReadingCompletion() {
         completed: readingState.completed,
         unverified: readingState.unverified,
         failed: readingState.failed,
+        skipped,
         note
     };
     readingNotify(note);
@@ -252,16 +379,20 @@ function startReadingCompletion() {
             completed: readingState.completed,
             unverified: readingState.unverified,
             failed: readingState.failed,
+            skipped: readingState.skipped,
             note: texts.busy
         };
         return Promise.resolve(readingState);
     }
 
     readingRunning = true;
-    readingState = { phase: "running", code: "starting", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, note: "" };
+    // Coursera can hand out a new csrf token while the tab stays open, so the page state
+    // is read again for every run instead of once per page load
+    readingBootstrapData = null;
+    readingState = { phase: "running", code: "starting", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: "" };
     runReadingCompletion()
         .catch(() => {
-            readingState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, note: texts.notCourse };
+            readingState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: texts.failed };
         })
         .finally(() => {
             readingRunning = false;
@@ -282,7 +413,10 @@ function loadReadingLanguage() {
 }
 
 // answer the popup while the run is going on
+// answer the popup. The message is only ever a trigger: which course, which account and
+// which readings to use all come from the page, never from the message.
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (!request || typeof request.action !== "string") return false;
     if (request.action === "completeReadings") {
         startReadingCompletion().then((state) => sendResponse(state)).catch(() => sendResponse({ phase: "error" }));
         return true;

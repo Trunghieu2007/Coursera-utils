@@ -10,9 +10,9 @@
   <header class="header">
     <div class="header-text">
       <h1 class="title" data-i18n="title">Copy Questions</h1>
-      <p class="subtitle" data-i18n="subtitle">Copy the visible question text to your clipboard.</p>
+      <p class="subtitle" data-i18n="subtitle">Copy the visible questions, with their options, code and formulas, to your clipboard.</p>
     </div>
-    <span class="badge" id="badge">v1.4</span>
+    <span class="badge" id="badge">v1.6</span>
   </header>
 
   <main class="stack">
@@ -43,6 +43,16 @@
     <button id="copyNow" class="btn" type="button" data-i18n="copyButton">Copy this page</button>
     <button id="completeVideos" class="btn ghost" type="button" data-i18n="completeVideosButton">Complete lecture videos</button>
     <button id="completeReadings" class="btn ghost" type="button" data-i18n="completeReadingsButton">Complete readings</button>
+    <button id="completeDiscussions" class="btn ghost" type="button" data-i18n="completeDiscussionsButton">Complete discussions</button>
+    <button id="completePlugins" class="btn ghost" type="button" data-i18n="completePluginsButton">Complete practice items</button>
+
+    <section class="card">
+      <div class="reply-field">
+        <label class="field-label" for="discussionReply" data-i18n="discussionReply">Discussion reply</label>
+        <textarea id="discussionReply" class="reply-box" rows="3" spellcheck="false"></textarea>
+        <span class="row-hint" data-i18n="discussionReplyHint">This exact text is posted to every discussion prompt you have not answered yet.</span>
+      </div>
+    </section>
 
     <p id="status" class="status" role="status" aria-live="polite"></p>
   </main>

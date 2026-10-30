@@ -127,6 +127,31 @@ body {
   font-weight: 650;
 }
 
+.reply-field {
+  display: grid;
+  gap: 7px;
+  padding: 11px 0;
+}
+
+.reply-box {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.reply-box:focus-visible {
+  outline: 2px solid var(--accent-bg);
+  outline-offset: 1px;
+}
+
 .switch {
   position: relative;
   flex: 0 0 auto;
