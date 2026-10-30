@@ -1,6 +1,6 @@
 <div align="center">
   <img src="icons/icon128.png" width="80" height="80" alt="Coursera Questions Copy Icon" />
-  <h1>Coursera Questions Copy</h1>
+  <h1>Coursera Utils</h1>
   <p>A browser extension that extracts questions from Coursera quizzes and assignments and copies them to the clipboard as structured JSON for study notes, revision, and review. It can also mark the videos, readings, discussions and practice items of a course as completed through Coursera's own API.</p>
 
   <p>
