@@ -762,7 +762,6 @@ async function runPluginCompletion(scope) {
     const remaining = items.length - alreadyCount;
 
     pluginState = { phase: "running", code: "running", scope, total: items.length, done: 0, completed: 0, unverified: 0, failed: 0, skipped, already: 0, note: "" };
-    pluginNotify(texts.started(items.length, alreadyCount, remaining));
 
     // one session lookup for the whole run, but only when the course actually has a
     // widget: every other item type writes its record without one. The branch a lab belongs
@@ -785,14 +784,12 @@ async function runPluginCompletion(scope) {
         if (!pluginKeyIsSafe(userId, courseId, item.id)) {
             pluginState.failed += 1;
             pluginState.done += 1;
-            pluginNotify(texts.progress(pluginState.done, pluginState.total));
             continue;
         }
         // the scan already said this item is done, so it costs no request at all
         if (pluginProgressItemCompleted(scannedItems, item.id)) {
             pluginState.already += 1;
             pluginState.done += 1;
-            pluginNotify(texts.progress(pluginState.done, pluginState.total));
             continue;
         }
         const before = await pluginReadBack(userId, courseId, item.id, item.route);
@@ -810,7 +807,6 @@ async function runPluginCompletion(scope) {
         }
 
         pluginState.done += 1;
-        pluginNotify(texts.progress(pluginState.done, pluginState.total));
     }
 
     // a run that lost its page or its account keeps what it already confirmed and writes
@@ -829,7 +825,6 @@ async function runPluginCompletion(scope) {
             already: pluginState.already,
             note: texts.stopped
         };
-        pluginNotify(texts.stopped);
         return pluginState;
     }
 
@@ -875,7 +870,6 @@ async function runPluginCompletion(scope) {
         already: pluginState.already,
         note
     };
-    pluginNotify(note);
     return pluginState;
 }
 
@@ -920,7 +914,6 @@ async function runGradedCheck() {
     }
 
     const note = texts.read(completed, items.length);
-    pluginNotify(note);
     return {
         phase: "done",
         code: "graded",
@@ -970,9 +963,9 @@ function pluginCurrentState() {
     return pluginState;
 }
 
-// show a notice on the page, the toast helper lives in content.js
-function pluginNotify(text) {
-    if (typeof showToast === "function") showToast(text);
+// let the skip-all run use its own pacing for one pass, without touching the saved setting
+function pluginSetRequestMode(mode) {
+    pluginRequestMode = mode === "instant" ? "instant" : "sequential";
 }
 
 // read the saved language and request mode

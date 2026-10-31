@@ -1,4 +1,3 @@
-const TOAST_ID = "ccq-toast";
 const WAIT_LIMIT = 8000;
 const WAIT_STEP = 250;
 const CODE_FENCE = "```";
@@ -68,35 +67,14 @@ const DECLARED_TYPES = {
     OffPlatformQuestion: "off_platform"
 };
 
-const TEXTS = {
-    en: {
-        copied: (count) => `Copied ${count} question${count === 1 ? "" : "s"} to clipboard!`,
-        empty: "No question is visible on this page",
-        blocked: "Clipboard blocked: click the page, then copy again"
-    },
-    vi: {
-        copied: (count) => `Đã sao chép ${count} câu hỏi vào bảng nhớ tạm!`,
-        empty: "Trang này không có câu hỏi nào đang hiển thị",
-        blocked: "Bảng nhớ tạm bị chặn: click vào trang rồi sao chép lại"
-    }
-};
-
 let lastAutoCopyUrl = "";
-let settings = { autoCopy: false, language: "en" };
+let settings = { autoCopy: false };
 
-// read the saved settings once per page and keep them in memory
+// read the saved setting once per page and keep it in memory
 function loadSettings() {
-    return chrome.storage.local.get(["autoCopy", "language"]).then((stored) => {
-        settings = {
-            autoCopy: stored.autoCopy === true,
-            language: TEXTS[stored.language] ? stored.language : "en"
-        };
+    return chrome.storage.local.get(["autoCopy"]).then((stored) => {
+        settings = { autoCopy: stored.autoCopy === true };
     });
-}
-
-// pick the string table for the saved language
-function textsFor(language) {
-    return TEXTS[language] || TEXTS.en;
 }
 
 // list the question blocks currently visible on the page. The blocks Coursera names are the
@@ -706,72 +684,17 @@ async function copyToClipboard(text) {
     }
 }
 
-// read the applied theme so the toast matches the page
-async function resolvedTheme() {
-    const stored = await chrome.storage.local.get(["theme"]);
-    const mode = ["light", "dark"].includes(stored.theme) ? stored.theme : "system";
-    if (mode !== "system") return mode;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-// show a rounded notice on the page, then hide it
-async function showToast(text, isError = false) {
-    const theme = await resolvedTheme();
-    let toast = document.getElementById(TOAST_ID);
-    if (!toast) {
-        toast = document.createElement("div");
-        toast.id = TOAST_ID;
-        toast.style.position = "fixed";
-        toast.style.bottom = "28px";
-        toast.style.left = "50%";
-        toast.style.transform = "translateX(-50%)";
-        toast.style.zIndex = "2147483647";
-        toast.style.maxWidth = "min(80vw, 420px)";
-        toast.style.padding = "12px 18px";
-        toast.style.borderRadius = "12px";
-        toast.style.font = "600 13px ui-sans-serif, system-ui, -apple-system, sans-serif";
-        toast.style.lineHeight = "1.4";
-        toast.style.textAlign = "center";
-        toast.style.transition = "opacity 0.3s ease";
-        document.body.appendChild(toast);
-    }
-
-    const base = theme === "dark" ? "#ffffff" : "#0a0a0a";
-    const opposite = theme === "dark" ? "#0a0a0a" : "#ffffff";
-    toast.style.backgroundColor = isError ? opposite : base;
-    toast.style.color = isError ? base : opposite;
-    toast.style.border = `2px solid ${isError ? base : "transparent"}`;
-    toast.style.boxShadow = "0 10px 28px rgba(0,0,0,0.25)";
-    toast.textContent = text;
-    toast.style.opacity = "1";
-
-    clearTimeout(showToast.hideTimer);
-    showToast.hideTimer = setTimeout(() => {
-        toast.style.opacity = "0";
-        setTimeout(() => toast.remove(), 320);
-    }, isError ? 4200 : 2600);
-}
-
-// manual copy when the user clicks the button
+// manual copy when the user clicks the button in the side panel
 async function copyNow() {
-    const strings = textsFor(settings.language);
     const questions = await extractQuestions();
-
-    if (questions.length === 0) {
-        await showToast(strings.empty, true);
-        return { count: 0, copied: false };
-    }
+    if (questions.length === 0) return { count: 0, copied: false };
 
     const copied = await copyToClipboard(buildText(questions));
-    if (copied) {
-        await showToast(strings.copied(questions.length));
-    } else {
-        await showToast(strings.blocked, true);
-    }
     return { count: questions.length, copied };
 }
 
-// auto copy, runs once per URL
+// auto copy, runs once per URL. The panel owns every notice now, so the result travels back
+// to it; a page that shows no question block stays quiet
 async function autoCopy() {
     if (!settings.autoCopy) return;
     if (lastAutoCopyUrl === window.location.href) return;
@@ -780,7 +703,9 @@ async function autoCopy() {
     if (blocks.length === 0) return;
 
     lastAutoCopyUrl = window.location.href;
-    await copyNow();
+    const result = await copyNow();
+    chrome.runtime.sendMessage({ action: "copyStatus", count: result.count, copied: result.copied })
+        .catch(() => {});
 }
 
 // the start-up state the page writes into an inline script, parsed as the JSON object it is.
@@ -896,12 +821,11 @@ function startPageChannel() {
     });
 }
 
-// update settings as soon as the popup changes them, no page reload needed
+// update settings as soon as the panel changes them, no page reload needed
 function startPageSettings() {
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== "local") return;
         if (changes.autoCopy) settings.autoCopy = changes.autoCopy.newValue === true;
-        if (changes.language && TEXTS[changes.language.newValue]) settings.language = changes.language.newValue;
 
         if (settings.autoCopy && changes.autoCopy && changes.autoCopy.newValue === true) {
             lastAutoCopyUrl = "";
@@ -921,8 +845,8 @@ function watchNavigation() {
     window.addEventListener("popstate", () => setTimeout(autoCopy, 400));
 }
 
-// the clipboard, the toast and the popup channel belong to the Coursera page alone: a frame of
-// the widget host never copies, it only answers when the page it sits in asks it what it shows
+// the clipboard and the panel channel belong to the Coursera page alone: a frame of the widget
+// host never copies, it only answers when the page it sits in asks it what it shows
 const role = extensionRole();
 if (role === "controller") {
     startPageChannel();

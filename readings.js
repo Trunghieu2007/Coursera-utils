@@ -342,7 +342,6 @@ async function runReadingCompletion() {
     const remaining = readings.length - alreadyCount;
 
     readingState = { phase: "running", code: "running", total: readings.length, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped, note: "" };
-    readingNotify(texts.started(readings.length, alreadyCount, remaining));
     let stopped = false;
 
     for (const item of readings) {
@@ -354,7 +353,6 @@ async function runReadingCompletion() {
         if (readingItemCompleted(progressItems, item.id)) {
             readingState.already += 1;
             readingState.done += 1;
-            readingNotify(texts.progress(readingState.done, readingState.total));
             continue;
         }
         const safe = readingKeyIsSafe(userId, courseId, item.id);
@@ -366,7 +364,6 @@ async function runReadingCompletion() {
         else if (result === "unverified") readingState.unverified += 1;
         else readingState.failed += 1;
 
-        readingNotify(texts.progress(readingState.done, readingState.total));
         // only a real write needs the pause, a refused id costs nothing
         if (safe) await readingSleep(readingPace(READING_ITEM_DELAY));
     }
@@ -386,7 +383,6 @@ async function runReadingCompletion() {
             skipped,
             note: texts.stopped
         };
-        readingNotify(texts.stopped);
         return readingState;
     }
 
@@ -417,7 +413,6 @@ async function runReadingCompletion() {
         skipped,
         note
     };
-    readingNotify(note);
     return readingState;
 }
 
@@ -465,9 +460,9 @@ function readingCurrentState() {
     return readingState;
 }
 
-// show a notice on the page, the toast helper lives in content.js
-function readingNotify(text) {
-    if (typeof showToast === "function") showToast(text);
+// let the skip-all run use its own pacing for one pass, without touching the saved setting
+function readingSetRequestMode(mode) {
+    readingRequestMode = mode === "instant" ? "instant" : "sequential";
 }
 
 // read the saved language and request mode

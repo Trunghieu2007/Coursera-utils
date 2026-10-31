@@ -1,9 +1,9 @@
 // The learning overview reads Coursera's own start-up cache, so the popup can show the mean
 // progress of the courses in progress without asking Coursera for anything. On a course page
 // it shows that course instead: its name, how many of its items are complete, and how many
-// items of each type it holds. The name comes from the cached course query, while the item
-// list and the per-course progress list come from two read-only GETs to Coursera. Nothing is
-// stored and nothing is written: no completion record, no launch, no grade.
+// of each type are complete out of that type's total. The name comes from the cached course
+// query, while the item list and the per-course progress list come from two read-only GETs to
+// Coursera. Nothing is stored and nothing is written: no completion record, no launch, no grade.
 
 const OVERVIEW_STATE_LIMIT = 3000000;
 
@@ -275,12 +275,21 @@ async function overviewCourseCard() {
             || typeLabels.get(entry.type)
             || overviewCleanLabel(entry.type)
             || "Other";
-        counts.set(label, (counts.get(label) || 0) + 1);
+        const count = counts.get(label) || { count: 0, done: 0 };
+        count.count += 1;
         const state = states[entry.id];
-        if (state && state.progressState === "Completed") done += 1;
+        if (state && state.progressState === "Completed") {
+            done += 1;
+            count.done += 1;
+        }
+        counts.set(label, count);
     }
 
-    const types = Array.from(counts.entries()).map((pair) => ({ label: pair[0], count: pair[1] }));
+    const types = Array.from(counts.entries()).map((pair) => ({
+        label: pair[0],
+        count: pair[1].count,
+        done: pair[1].done
+    }));
     types.sort((a, b) => b.count - a.count || (a.label < b.label ? -1 : a.label > b.label ? 1 : 0));
 
     const elements = syllabus.elements || [];

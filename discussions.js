@@ -33,8 +33,8 @@
 const DISCUSSION_ITEM_DELAY = 3000;
 const DISCUSSION_MAX_TEXT_LENGTH = 5000;
 
-// the sentence the reply box starts with, in the language of the interface. The popup
-// shows the same pair, so what the student sees is what gets posted.
+// the sentence posted to every prompt, in the language of the interface. It is fixed;
+// the popup offers no way to edit it.
 const DISCUSSION_DEFAULT_REPLY = {
     en: "Thank you for the prompt. I am working through this week and will keep this in mind.",
     vi: "Cảm ơn bạn đã đặt câu hỏi. Mình đang học tuần này và sẽ ghi nhớ điều này."
@@ -52,7 +52,6 @@ const DISCUSSION_TEXTS = {
         partial: (completed, total, failed) => `Replied to ${completed} of ${total} discussion prompts. ${failed} still ${failed === 1 ? "needs" : "need"} attention.`,
         unverified: (completed, total, unverified) => `${completed} of ${total} replies are confirmed, ${unverified} could not be read back.`,
         none: "No discussion prompt was found in this course.",
-        noText: "Type the reply you want to send in the popup first.",
         failed: "The run stopped with an unexpected error. Check the browser console.",
         skipped: (count) => ` ${count} locked prompt${count === 1 ? "" : "s"} left alone.`,
         already: (count) => ` ${count} prompt${count === 1 ? " was" : "s were"} already complete.`,
@@ -61,7 +60,7 @@ const DISCUSSION_TEXTS = {
         notLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
         identity: "The page and Coursera name two different accounts, so nothing was posted. Reload the page.",
         stopped: "The page changed while the run was going on, so the rest of the list was left alone.",
-        busy: "Discussion reply completion is already running."
+        busy: "Discussion skip is already running."
     },
     vi: {
         started: (total, already, remaining) => remaining === 0
@@ -74,7 +73,6 @@ const DISCUSSION_TEXTS = {
         partial: (completed, total, failed) => `Đã trả lời ${completed}/${total} thảo luận. ${failed} thảo luận chưa được.`,
         unverified: (completed, total, unverified) => `${completed}/${total} câu trả lời đã xác minh, còn ${unverified} câu đã đăng nhưng không đọc lại được.`,
         none: "Không tìm thấy thảo luận nào trong khoá học này.",
-        noText: "Hãy nhập nội dung trả lời trong popup trước.",
         failed: "Lần chạy dừng vì một lỗi bất ngờ. Xem console của trình duyệt.",
         skipped: (count) => ` ${count} thảo luận bị khoá được bỏ qua.`,
         already: (count) => ` ${count} thảo luận đã hoàn thành từ trước.`,
@@ -83,7 +81,7 @@ const DISCUSSION_TEXTS = {
         notLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
         identity: "Trang và Coursera chỉ hai tài khoản khác nhau, nên không có gì được đăng. Hãy reload trang.",
         stopped: "Trang đã thay đổi khi đang chạy, nên phần còn lại được giữ nguyên.",
-        busy: "Hoàn thành thảo luận đang chạy."
+        busy: "Skip thảo luận đang chạy."
     }
 };
 
@@ -203,15 +201,10 @@ async function discussionUserId() {
     return "";
 }
 
-// the reply the student wrote. An empty box is left empty on purpose so the run can
-// refuse, only a course that never opened the popup falls back to the default sentence
-async function discussionReplyText() {
-    const stored = await chrome.storage.local.get(["discussionReply"]);
-    if (typeof stored.discussionReply === "string") {
-        return stored.discussionReply.trim().slice(0, DISCUSSION_MAX_TEXT_LENGTH);
-    }
-    const fallback = DISCUSSION_DEFAULT_REPLY[discussionLanguage] || DISCUSSION_DEFAULT_REPLY.en;
-    return fallback.slice(0, DISCUSSION_MAX_TEXT_LENGTH);
+// the fixed sentence in the language of the interface
+function discussionReplyText() {
+    const reply = DISCUSSION_DEFAULT_REPLY[discussionLanguage] || DISCUSSION_DEFAULT_REPLY.en;
+    return reply.slice(0, DISCUSSION_MAX_TEXT_LENGTH);
 }
 
 // the whole course tree, with the item list Coursera uses for the outline. Locked items
@@ -407,18 +400,13 @@ async function runDiscussionCompletion() {
         return discussionState;
     }
 
-    const text = await discussionReplyText();
-    if (!text) {
-        discussionState = { phase: "error", code: "noText", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped, answered: 0, note: texts.noText };
-        return discussionState;
-    }
+    const text = discussionReplyText();
 
     const progressItems = await discussionCourseProgressItems(userId, courseId);
     const alreadyCount = prompts.filter((item) => discussionItemCompleted(progressItems, item.id)).length;
     const remaining = prompts.length - alreadyCount;
 
     discussionState = { phase: "running", code: "running", total: prompts.length, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped, answered: 0, note: "" };
-    discussionNotify(texts.started(prompts.length, alreadyCount, remaining));
     let stopped = false;
 
     for (const item of prompts) {
@@ -430,7 +418,6 @@ async function runDiscussionCompletion() {
         if (discussionItemCompleted(progressItems, item.id)) {
             discussionState.already += 1;
             discussionState.done += 1;
-            discussionNotify(texts.progress(discussionState.done, discussionState.total));
             continue;
         }
         // an id the record key cannot hold is reported as a failure and never sent, so a
@@ -438,7 +425,6 @@ async function runDiscussionCompletion() {
         if (!discussionKeyIsSafe(userId, courseId, item.id)) {
             discussionState.failed += 1;
             discussionState.done += 1;
-            discussionNotify(texts.progress(discussionState.done, discussionState.total));
             continue;
         }
         const result = await completeDiscussion(userId, courseId, item, text);
@@ -448,7 +434,6 @@ async function runDiscussionCompletion() {
         else if (result === "answered") discussionState.answered += 1;
         else discussionState.failed += 1;
 
-        discussionNotify(texts.progress(discussionState.done, discussionState.total));
         // only a real post needs the pause, a skipped prompt costs nothing
         if (result === "completed" || result === "unverified") await discussionSleep(discussionPace(DISCUSSION_ITEM_DELAY));
     }
@@ -469,7 +454,6 @@ async function runDiscussionCompletion() {
             answered: discussionState.answered,
             note: texts.stopped
         };
-        discussionNotify(texts.stopped);
         return discussionState;
     }
 
@@ -502,7 +486,6 @@ async function runDiscussionCompletion() {
         answered: discussionState.answered,
         note
     };
-    discussionNotify(note);
     return discussionState;
 }
 
@@ -551,9 +534,9 @@ function discussionCurrentState() {
     return discussionState;
 }
 
-// show a notice on the page, the toast helper lives in content.js
-function discussionNotify(text) {
-    if (typeof showToast === "function") showToast(text);
+// let the skip-all run use its own pacing for one pass, without touching the saved setting
+function discussionSetRequestMode(mode) {
+    discussionRequestMode = mode === "instant" ? "instant" : "sequential";
 }
 
 // read the saved language and request mode

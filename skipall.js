@@ -1,24 +1,21 @@
-// Skip everything.
+// Skip all courses.
 //
-// One button runs every completion module of the course in a fixed order: lecture videos,
-// readings, discussions, practice items, labs and ungraded app items. Graded work is not in
-// that list, and the read-only graded check is not started either: this button only finishes
-// what each module can finish without a grade.
+// One run every completion module of the course in a fixed order: lecture videos, readings,
+// discussions, practice items, labs and ungraded app items. Graded work is not in that list,
+// and the read-only graded check is not started either: this run only finishes what each
+// module can finish without a grade. The popup offers it twice, once at each pacing.
 //
 // The run starts with one scan of the course outline and of the per-course progress list, so
 // the student sees how many items can be skipped and how many Coursera already reports as
-// done before the first write goes out. Locked items are counted apart and never touched. The
-// discussion step is left out when the reply box is empty, because that module only posts the
-// text the student wrote.
+// done before the first write goes out. Locked items are counted apart and never touched.
 //
 // Each module still takes its own scan and still writes its items one at a time, so this file
 // adds no path of its own to the server: it only calls the modules in order, waits for each
-// run to finish and adds up what they report. The request mode setting is read by the modules
-// themselves, so the whole run follows it without a second switch here.
+// run to finish and adds up what they report. The pacing is forced by the popup on the way in
+// and handed back on the way out, so the saved setting is never rewritten.
 //
 // A module that reports a dead account, a changed page or an unreadable course stops the run
-// before the next module starts. A module that simply finds nothing, or a discussion step
-// without reply text, does not.
+// before the next module starts. A module that simply finds nothing does not.
 //
 // The plumbing here is repeated on purpose from the other modules. All of these files are
 // loaded in the same isolated world, so a shared helper name would collide, and keeping the
@@ -55,14 +52,13 @@ const SKIP_ALL_TEXTS = {
         unverified: (completed, already, unverified) => `Skip finished: ${completed} newly marked, ${already} already done, ${unverified} could not be read back.`,
         skipped: (count) => ` ${count} locked item${count === 1 ? "" : "s"} left alone.`,
         answered: (count) => ` ${count} discussion prompt${count === 1 ? "" : "s"} already had your answer.`,
-        discussionLeft: " Discussion prompts were left alone because no reply text is set.",
         none: "No item that can be skipped was found in this course.",
         notCourse: "Open a Coursera course page first.",
         notLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
         identity: "The page and Coursera name two different accounts, so nothing was marked. Reload the page.",
         stopped: "The page changed while the run was going on, so the rest of the list was left alone.",
         failed: "The run stopped with an unexpected error. Check the browser console.",
-        busy: "Skip everything is already running."
+        busy: "Skip all courses is already running."
     },
     vi: {
         started: (total, already, remaining) => remaining === 0
@@ -76,20 +72,19 @@ const SKIP_ALL_TEXTS = {
         unverified: (completed, already, unverified) => `Đã skip xong: ${completed} bài vừa đánh dấu, ${already} bài đã xong từ trước, còn ${unverified} bài đã ghi nhưng không đọc lại được.`,
         skipped: (count) => ` ${count} bài bị khoá được bỏ qua.`,
         answered: (count) => ` ${count} thảo luận đã có câu trả lời của bạn.`,
-        discussionLeft: " Các thảo luận được bỏ qua vì chưa có nội dung trả lời.",
         none: "Không tìm thấy bài nào có thể skip trong khoá học này.",
         notCourse: "Hãy mở một trang khoá học Coursera trước.",
         notLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
         identity: "Trang và Coursera chỉ hai tài khoản khác nhau, nên không có gì được đánh dấu. Hãy reload trang.",
         stopped: "Trang đã thay đổi khi đang chạy, nên phần còn lại được giữ nguyên.",
         failed: "Lần chạy dừng vì một lỗi bất ngờ. Xem console của trình duyệt.",
-        busy: "Skip mọi bài đang chạy."
+        busy: "Skip toàn bộ khoá học đang chạy."
     }
 };
 
 let skipAllRunning = false;
 let skipAllLanguage = "en";
-let skipAllState = { phase: "idle", code: "idle", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, discussionLeft: 0, answered: 0, note: "" };
+let skipAllState = { phase: "idle", code: "idle", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: "" };
 let skipAllBootstrapData = null;
 let skipAllRunPromise = Promise.resolve();
 
@@ -203,22 +198,13 @@ function skipAllItemIsLocked(item) {
     return status === "locked" || status.indexOf("locked_") === 0 || status.indexOf("hard_locked") === 0;
 }
 
-// the discussion step only runs when the student has written a reply. An unset box means the
-// module falls back to its own default sentence, so only an explicitly cleared box counts as
-// no text at all.
-async function skipAllDiscussionPossible() {
-    const stored = await chrome.storage.local.get(["discussionReply"]);
-    if (typeof stored.discussionReply === "string") return stored.discussionReply.trim().length > 0;
-    return true;
-}
-
-// the scan the run starts with: how many items the modules own, how many are already done,
-// how many are locked, and how many prompts are left alone because there is no reply text
-function skipAllPlan(syllabus, progressItems, discussionPossible) {
+// the scan the run starts with: how many items the modules own, how many are already done
+// and how many are locked
+function skipAllPlan(syllabus, progressItems) {
     const linked = syllabus.linked || {};
     const items = linked["onDemandCourseMaterialItems.v2"] || [];
     const seen = new Set();
-    const plan = { total: 0, already: 0, skipped: 0, discussionLeft: 0 };
+    const plan = { total: 0, already: 0, skipped: 0 };
     for (const item of items) {
         if (!item || !item.id || seen.has(item.id)) continue;
         seen.add(item.id);
@@ -226,10 +212,6 @@ function skipAllPlan(syllabus, progressItems, discussionPossible) {
         if (SKIP_ALL_TYPES.indexOf(type) < 0) continue;
         if (skipAllItemIsLocked(item)) {
             plan.skipped += 1;
-            continue;
-        }
-        if (type === "discussionPrompt" && !discussionPossible) {
-            plan.discussionLeft += 1;
             continue;
         }
         plan.total += 1;
@@ -292,13 +274,13 @@ async function runSkipEverything() {
     const texts = skipAllTexts();
     const slug = skipAllCourseSlug();
     if (!slug) {
-        skipAllState = { phase: "error", code: "notCourse", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, discussionLeft: 0, answered: 0, note: texts.notCourse };
+        skipAllState = { phase: "error", code: "notCourse", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.notCourse };
         return skipAllState;
     }
 
     const userId = await skipAllUserId();
     if (!userId) {
-        skipAllState = { phase: "error", code: "notLoggedIn", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, discussionLeft: 0, answered: 0, note: texts.notLoggedIn };
+        skipAllState = { phase: "error", code: "notLoggedIn", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.notLoggedIn };
         return skipAllState;
     }
 
@@ -306,33 +288,31 @@ async function runSkipEverything() {
     // that names a different one is not a page this run should be writing for
     const cookieUser = skipAllCookieUser();
     if (cookieUser && cookieUser !== String(userId)) {
-        skipAllState = { phase: "error", code: "identity", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, discussionLeft: 0, answered: 0, note: texts.identity };
+        skipAllState = { phase: "error", code: "identity", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.identity };
         return skipAllState;
     }
 
     const syllabus = await skipAllSyllabus(slug);
     if (!syllabus) {
-        skipAllState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, discussionLeft: 0, answered: 0, note: texts.failed };
+        skipAllState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.failed };
         return skipAllState;
     }
 
     const courseId = skipAllCourseId(syllabus);
     const progressItems = courseId ? await skipAllCourseProgressItems(userId, courseId) : null;
-    const discussionPossible = await skipAllDiscussionPossible();
-    const plan = skipAllPlan(syllabus, progressItems, discussionPossible);
+    const plan = skipAllPlan(syllabus, progressItems);
 
-    if (plan.total === 0 && plan.skipped === 0 && plan.discussionLeft === 0) {
-        skipAllState = { phase: "error", code: "none", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, discussionLeft: 0, answered: 0, note: texts.none };
+    if (plan.total === 0 && plan.skipped === 0) {
+        skipAllState = { phase: "error", code: "none", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.none };
         return skipAllState;
     }
 
-    skipAllState = { phase: "running", code: "running", total: plan.total, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: plan.skipped, discussionLeft: plan.discussionLeft, answered: 0, note: "" };
-    skipAllNotify(texts.started(plan.total, plan.already, plan.total - plan.already));
+    skipAllState = { phase: "running", code: "running", total: plan.total, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: plan.skipped, answered: 0, note: "" };
 
     const scopes = skipAllScopes();
     await skipAllWaitBusy(scopes);
 
-    const totals = { total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: plan.skipped, discussionLeft: plan.discussionLeft, answered: 0 };
+    const totals = { total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: plan.skipped, answered: 0 };
     let fatal = "";
 
     for (const scope of scopes) {
@@ -349,10 +329,6 @@ async function runSkipEverything() {
             await Promise.resolve(scope.wait()).catch(() => {});
             state = scope.read() || {};
         }
-        if (state.code === "noText") {
-            totals.discussionLeft = Math.max(totals.discussionLeft, 1);
-            continue;
-        }
         skipAllAdd(totals, state);
         if (SKIP_ALL_FATAL.indexOf(state.code) >= 0) {
             fatal = state.code;
@@ -368,11 +344,9 @@ async function runSkipEverything() {
             unverified: totals.unverified,
             failed: totals.failed,
             skipped: totals.skipped,
-            discussionLeft: totals.discussionLeft,
             answered: totals.answered,
             note: ""
         };
-        if (totals.total > 0) skipAllNotify(texts.progress(totals.done, totals.total));
     }
 
     if (fatal) {
@@ -386,17 +360,14 @@ async function runSkipEverything() {
             unverified: totals.unverified,
             failed: totals.failed,
             skipped: totals.skipped,
-            discussionLeft: totals.discussionLeft,
             answered: totals.answered,
             note: texts[fatal] || texts.failed
         };
-        skipAllNotify(skipAllState.note);
         return skipAllState;
     }
 
     const tail = (totals.skipped > 0 ? texts.skipped(totals.skipped) : "")
-        + (totals.answered > 0 ? texts.answered(totals.answered) : "")
-        + (totals.discussionLeft > 0 ? texts.discussionLeft : "");
+        + (totals.answered > 0 ? texts.answered(totals.answered) : "");
     let code;
     let note;
     if (totals.failed > 0) {
@@ -420,16 +391,44 @@ async function runSkipEverything() {
         unverified: totals.unverified,
         failed: totals.failed,
         skipped: totals.skipped,
-        discussionLeft: totals.discussionLeft,
         answered: totals.answered,
         note
     };
-    skipAllNotify(note);
     return skipAllState;
 }
 
+// the popup's two skip buttons each stand for one pacing. The modules keep the saved
+// setting, so it is replaced only for the pass and put back afterwards.
+function skipAllSetRequestMode(mode) {
+    if (typeof videoSetRequestMode === "function") videoSetRequestMode(mode);
+    if (typeof readingSetRequestMode === "function") readingSetRequestMode(mode);
+    if (typeof discussionSetRequestMode === "function") discussionSetRequestMode(mode);
+    if (typeof pluginSetRequestMode === "function") pluginSetRequestMode(mode);
+}
+
+// the pacing the student saved in the Skip mode setting
+async function skipAllSavedRequestMode() {
+    try {
+        const stored = await chrome.storage.local.get(["requestMode"]);
+        return stored.requestMode === "instant" ? "instant" : "sequential";
+    } catch {
+        return "sequential";
+    }
+}
+
+// run one pass at the asked pacing, then hand the modules their saved pacing back
+async function runSkipEverythingWithMode(mode) {
+    const saved = await skipAllSavedRequestMode();
+    skipAllSetRequestMode(mode);
+    try {
+        return await runSkipEverything();
+    } finally {
+        skipAllSetRequestMode(saved);
+    }
+}
+
 // start the run in the background, the popup follows the state on its own
-function startSkipEverything() {
+function startSkipEverything(mode) {
     const texts = skipAllTexts();
     if (skipAllRunning) {
         // the busy answer is handed back without touching the state of the run that is
@@ -437,14 +436,15 @@ function startSkipEverything() {
         return Promise.resolve(Object.assign({}, skipAllState, { code: "busy", note: texts.busy }));
     }
 
+    const forced = mode === "instant" || mode === "sequential" ? mode : "";
     skipAllRunning = true;
     // Coursera can hand out a new csrf token while the tab stays open, so the page state is
     // read again for every run instead of once per page load
     skipAllBootstrapData = null;
-    skipAllState = { phase: "running", code: "starting", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, discussionLeft: 0, answered: 0, note: "" };
-    skipAllRunPromise = runSkipEverything()
+    skipAllState = { phase: "running", code: "starting", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: "" };
+    skipAllRunPromise = (forced ? runSkipEverythingWithMode(forced) : runSkipEverything())
         .catch(() => {
-            skipAllState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, discussionLeft: 0, answered: 0, note: texts.failed };
+            skipAllState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.failed };
         })
         .finally(() => {
             skipAllRunning = false;
@@ -462,11 +462,6 @@ function skipAllCurrentState() {
     return skipAllState;
 }
 
-// show a notice on the page, the toast helper lives in content.js
-function skipAllNotify(text) {
-    if (typeof showToast === "function") showToast(text);
-}
-
 // read the saved language
 function loadSkipAllLanguage() {
     return chrome.storage.local.get(["language"]).then((stored) => {
@@ -479,7 +474,7 @@ function loadSkipAllLanguage() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (!request || typeof request.action !== "string") return false;
     if (request.action === "skipEverything") {
-        startSkipEverything().then((state) => sendResponse(state)).catch(() => sendResponse({ phase: "error" }));
+        startSkipEverything(request.requestMode).then((state) => sendResponse(state)).catch(() => sendResponse({ phase: "error" }));
         return true;
     }
     if (request.action === "skipAllStatus") {

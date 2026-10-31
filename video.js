@@ -423,7 +423,6 @@ async function runVideoCompletion() {
     const remaining = lectures.length - alreadyCount;
 
     videoState = { phase: "running", code: "running", total: lectures.length, done: 0, completed: 0, already: 0, failed: 0, skipped, note: "" };
-    notify(texts.started(lectures.length, alreadyCount, remaining));
     let stopped = false;
 
     for (const item of lectures) {
@@ -435,7 +434,6 @@ async function runVideoCompletion() {
         if (videoItemCompleted(progressItems, item.id)) {
             videoState.already += 1;
             videoState.done += 1;
-            notify(texts.progress(videoState.done, videoState.total));
             continue;
         }
         // an id that cannot go in the event path is reported as a failure and never sent,
@@ -443,7 +441,6 @@ async function runVideoCompletion() {
         if (!videoIsKeyId(item.id) || !videoIsSlug(slug)) {
             videoState.done += 1;
             videoState.failed += 1;
-            notify(texts.progress(videoState.done, videoState.total));
             continue;
         }
         const video = await resolveVideo(courseId, item);
@@ -455,7 +452,6 @@ async function runVideoCompletion() {
         if (done) videoState.completed += 1;
         else videoState.failed += 1;
 
-        notify(texts.progress(videoState.done, videoState.total));
         await sleep(videoPace(VIDEO_ITEM_DELAY));
     }
 
@@ -473,7 +469,6 @@ async function runVideoCompletion() {
             skipped,
             note: texts.stopped
         };
-        notify(texts.stopped);
         return videoState;
     }
 
@@ -493,7 +488,6 @@ async function runVideoCompletion() {
         skipped,
         note
     };
-    notify(note);
     return videoState;
 }
 
@@ -540,9 +534,9 @@ function videoCurrentState() {
     return videoState;
 }
 
-// show a notice on the page, the toast helper lives in content.js
-function notify(text, isError) {
-    if (typeof showToast === "function") showToast(text, isError);
+// let the skip-all run use its own pacing for one pass, without touching the saved setting
+function videoSetRequestMode(mode) {
+    videoRequestMode = mode === "instant" ? "instant" : "sequential";
 }
 
 // read the saved language and request mode
