@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Coursera Copy Questions",
-  "version": "1.8.0",
-  "description": "Copy Coursera lesson questions with their options and code, and mark its videos, readings, discussions and practice items done.",
+  "version": "1.14.0",
+  "description": "Copy Coursera questions, skip every completable item, and show progress.",
   "permissions": [
     "storage",
     "clipboardWrite"
@@ -10,14 +10,16 @@
   "content_scripts": [
     {
       "matches": [
-        "*://*.coursera.org/learn/*"
+        "*://*.coursera.org/*"
       ],
       "js": [
         "content.js",
+        "overview.js",
         "video.js",
         "readings.js",
         "discussions.js",
-        "plugins.js"
+        "plugins.js",
+        "skipall.js"
       ],
       "run_at": "document_idle"
     },

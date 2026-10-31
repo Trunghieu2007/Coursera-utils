@@ -16,6 +16,32 @@
   </header>
 
   <main class="stack">
+    <section class="card account-card" id="account" hidden>
+      <span class="avatar" aria-hidden="true">
+        <img id="accountPhoto" alt="" referrerpolicy="no-referrer" hidden>
+        <span class="avatar-fallback" id="accountFallback">
+        <svg class="account-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </span>
+      </span>
+      <span class="account-text">
+        <strong class="account-name" id="accountName"></strong>
+        <span class="account-email" id="accountEmail" hidden></span>
+      </span>
+    </section>
+
+    <section class="card overview-card" id="overview" hidden>
+      <div class="overview-head">
+        <strong class="overview-title" id="overviewTitle" data-i18n="overviewTitle">Learning progress</strong>
+        <span class="overview-percent" id="overviewPercent"></span>
+      </div>
+      <p class="overview-name" id="overviewName" hidden></p>
+      <div class="progress" id="overviewBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Learning progress">
+        <span class="progress-fill" id="overviewFill"></span>
+      </div>
+      <p class="row-hint overview-caption" id="overviewCaption"></p>
+      <div class="overview-types" id="overviewTypes" hidden></div>
+    </section>
+
     <section class="card">
       <label class="row" for="autoCopy">
         <span class="row-text">
@@ -38,13 +64,22 @@
         <span class="field-label" data-i18n="theme">Theme</span>
         <div class="picker" id="themePicker"></div>
       </div>
+      <div class="field">
+        <span class="field-label" data-i18n="requestMode">Request mode</span>
+        <div class="picker" id="requestModePicker"></div>
+      </div>
+      <p class="row-hint request-hint" data-i18n="requestModeHint">Sequential waits a little between items. Instantly sends the same one-at-a-time requests with no pause.</p>
     </section>
 
     <button id="copyNow" class="btn" type="button" data-i18n="copyButton">Copy this page</button>
+    <button id="skipEverything" class="btn" type="button" data-i18n="skipAllButton">Skip everything</button>
     <button id="completeVideos" class="btn ghost" type="button" data-i18n="completeVideosButton">Complete lecture videos</button>
     <button id="completeReadings" class="btn ghost" type="button" data-i18n="completeReadingsButton">Complete readings</button>
     <button id="completeDiscussions" class="btn ghost" type="button" data-i18n="completeDiscussionsButton">Complete discussions</button>
     <button id="completePlugins" class="btn ghost" type="button" data-i18n="completePluginsButton">Complete practice items</button>
+    <button id="completeLabs" class="btn ghost" type="button" data-i18n="completeLabsButton">Complete labs</button>
+    <button id="completeLti" class="btn ghost" type="button" data-i18n="completeLtiButton">Complete ungraded labs</button>
+    <button id="checkGraded" class="btn ghost" type="button" data-i18n="checkGradedButton">Check graded app items</button>
 
     <section class="card">
       <div class="reply-field">

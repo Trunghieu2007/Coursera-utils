@@ -42,7 +42,11 @@ const DISCUSSION_DEFAULT_REPLY = {
 
 const DISCUSSION_TEXTS = {
     en: {
-        started: (count) => `Replying to ${count} discussion prompt${count === 1 ? "" : "s"}, one at a time.`,
+        started: (total, already, remaining) => remaining === 0
+            ? `All ${total} discussion prompt${total === 1 ? "" : "s"} are already complete.`
+            : already > 0
+                ? `Found ${total} discussion prompt${total === 1 ? "" : "s"}: ${already} already complete, replying to the other ${remaining}.`
+                : `Replying to ${total} discussion prompt${total === 1 ? "" : "s"}, one at a time.`,
         progress: (done, total) => `Replied to ${done} of ${total} discussion prompts.`,
         finished: (completed, total) => `Replied to ${completed} of ${total} discussion prompts. Reload the page to see them.`,
         partial: (completed, total, failed) => `Replied to ${completed} of ${total} discussion prompts. ${failed} still ${failed === 1 ? "needs" : "need"} attention.`,
@@ -51,6 +55,7 @@ const DISCUSSION_TEXTS = {
         noText: "Type the reply you want to send in the popup first.",
         failed: "The run stopped with an unexpected error. Check the browser console.",
         skipped: (count) => ` ${count} locked prompt${count === 1 ? "" : "s"} left alone.`,
+        already: (count) => ` ${count} prompt${count === 1 ? " was" : "s were"} already complete.`,
         answered: (count) => ` ${count} prompt${count === 1 ? "" : "s"} already had your answer.`,
         notCourse: "Open a Coursera course page first.",
         notLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
@@ -59,7 +64,11 @@ const DISCUSSION_TEXTS = {
         busy: "Discussion reply completion is already running."
     },
     vi: {
-        started: (count) => `Đang trả lời ${count} thảo luận, từng thảo luận một.`,
+        started: (total, already, remaining) => remaining === 0
+            ? `Cả ${total} thảo luận đều đã hoàn thành.`
+            : already > 0
+                ? `Tìm thấy ${total} thảo luận: ${already} đã xong, còn ${remaining} sẽ trả lời.`
+                : `Đang trả lời ${total} thảo luận, từng thảo luận một.`,
         progress: (done, total) => `Đã trả lời ${done}/${total} thảo luận.`,
         finished: (completed, total) => `Đã trả lời ${completed}/${total} thảo luận. Reload trang để xem.`,
         partial: (completed, total, failed) => `Đã trả lời ${completed}/${total} thảo luận. ${failed} thảo luận chưa được.`,
@@ -68,6 +77,7 @@ const DISCUSSION_TEXTS = {
         noText: "Hãy nhập nội dung trả lời trong popup trước.",
         failed: "Lần chạy dừng vì một lỗi bất ngờ. Xem console của trình duyệt.",
         skipped: (count) => ` ${count} thảo luận bị khoá được bỏ qua.`,
+        already: (count) => ` ${count} thảo luận đã hoàn thành từ trước.`,
         answered: (count) => ` ${count} thảo luận đã có câu trả lời của bạn.`,
         notCourse: "Hãy mở một trang khoá học Coursera trước.",
         notLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
@@ -79,8 +89,10 @@ const DISCUSSION_TEXTS = {
 
 let discussionRunning = false;
 let discussionLanguage = "en";
-let discussionState = { phase: "idle", code: "idle", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: "" };
+let discussionRequestMode = "sequential";
+let discussionState = { phase: "idle", code: "idle", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: "" };
 let discussionBootstrapData = null;
+let discussionRunPromise = Promise.resolve();
 
 // pick the string table for the saved language
 function discussionTexts() {
@@ -90,6 +102,12 @@ function discussionTexts() {
 // wait for a number of milliseconds
 function discussionSleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// instant mode removes the deliberate pause between posts; the requests still go one at a
+// time and in the same order
+function discussionPace(ms) {
+    return discussionRequestMode === "instant" ? 0 : ms;
 }
 
 // the page writes its own start-up state into an inline script, and that state already
@@ -220,6 +238,27 @@ function discussionCourseId(syllabus) {
     return "";
 }
 
+// the per-course progress list, the same one the outline page reads. It is the scan the
+// run takes before it writes anything, so a prompt Coursera already reports as done is
+// never answered a second time.
+async function discussionCourseProgressItems(userId, courseId) {
+    const key = encodeURIComponent(userId + "~" + courseId);
+    const response = await discussionRequest("/api/onDemandCoursesProgress.v1/" + key + "?fields=items", { cache: "no-store" });
+    if (!response.ok) return null;
+    const data = await discussionJson(response);
+    const record = (data.elements || [])[0];
+    const items = record && record.items;
+    if (!items || typeof items !== "object") return null;
+    return items;
+}
+
+// true when Coursera's own progress list already reports the prompt as done
+function discussionItemCompleted(items, itemId) {
+    if (!items || !Object.prototype.hasOwnProperty.call(items, itemId)) return false;
+    const entry = items[itemId];
+    return Boolean(entry && entry.progressState === "Completed");
+}
+
 // a prompt the course will not let the student open yet
 function discussionItemIsLocked(item) {
     if (item.isLocked === true) return true;
@@ -335,13 +374,13 @@ async function runDiscussionCompletion() {
     const texts = discussionTexts();
     const slug = discussionCourseSlug();
     if (!slug) {
-        discussionState = { phase: "error", code: "notCourse", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.notCourse };
+        discussionState = { phase: "error", code: "notCourse", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.notCourse };
         return discussionState;
     }
 
     const userId = await discussionUserId();
     if (!userId) {
-        discussionState = { phase: "error", code: "notLoggedIn", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.notLoggedIn };
+        discussionState = { phase: "error", code: "notLoggedIn", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.notLoggedIn };
         return discussionState;
     }
 
@@ -349,13 +388,13 @@ async function runDiscussionCompletion() {
     // page that names a different one is not a page this run should be writing for
     const cookieUser = discussionCookieUser();
     if (cookieUser && cookieUser !== String(userId)) {
-        discussionState = { phase: "error", code: "identity", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.identity };
+        discussionState = { phase: "error", code: "identity", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.identity };
         return discussionState;
     }
 
     const syllabus = await discussionSyllabus(slug);
     if (!syllabus) {
-        discussionState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.failed };
+        discussionState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.failed };
         return discussionState;
     }
 
@@ -364,24 +403,35 @@ async function runDiscussionCompletion() {
     const prompts = allPrompts.filter((item) => !item.locked);
     const skipped = allPrompts.length - prompts.length;
     if (allPrompts.length === 0) {
-        discussionState = { phase: "error", code: "none", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped, answered: 0, note: texts.none };
+        discussionState = { phase: "error", code: "none", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped, answered: 0, note: texts.none };
         return discussionState;
     }
 
     const text = await discussionReplyText();
     if (!text) {
-        discussionState = { phase: "error", code: "noText", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped, answered: 0, note: texts.noText };
+        discussionState = { phase: "error", code: "noText", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped, answered: 0, note: texts.noText };
         return discussionState;
     }
 
-    discussionState = { phase: "running", code: "running", total: prompts.length, done: 0, completed: 0, unverified: 0, failed: 0, skipped, answered: 0, note: "" };
-    discussionNotify(texts.started(prompts.length));
+    const progressItems = await discussionCourseProgressItems(userId, courseId);
+    const alreadyCount = prompts.filter((item) => discussionItemCompleted(progressItems, item.id)).length;
+    const remaining = prompts.length - alreadyCount;
+
+    discussionState = { phase: "running", code: "running", total: prompts.length, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped, answered: 0, note: "" };
+    discussionNotify(texts.started(prompts.length, alreadyCount, remaining));
     let stopped = false;
 
     for (const item of prompts) {
         if (discussionPageMoved(slug, userId)) {
             stopped = true;
             break;
+        }
+        // the scan already said this prompt is done, so it costs no request at all
+        if (discussionItemCompleted(progressItems, item.id)) {
+            discussionState.already += 1;
+            discussionState.done += 1;
+            discussionNotify(texts.progress(discussionState.done, discussionState.total));
+            continue;
         }
         // an id the record key cannot hold is reported as a failure and never sent, so a
         // syllabus that lies about its own ids cannot move an answer into another key
@@ -400,7 +450,7 @@ async function runDiscussionCompletion() {
 
         discussionNotify(texts.progress(discussionState.done, discussionState.total));
         // only a real post needs the pause, a skipped prompt costs nothing
-        if (result === "completed" || result === "unverified") await discussionSleep(DISCUSSION_ITEM_DELAY);
+        if (result === "completed" || result === "unverified") await discussionSleep(discussionPace(DISCUSSION_ITEM_DELAY));
     }
 
     // a run that lost its page or its account keeps what it already posted and writes
@@ -412,6 +462,7 @@ async function runDiscussionCompletion() {
             total: discussionState.total,
             done: discussionState.done,
             completed: discussionState.completed,
+            already: discussionState.already,
             unverified: discussionState.unverified,
             failed: discussionState.failed,
             skipped,
@@ -422,7 +473,9 @@ async function runDiscussionCompletion() {
         return discussionState;
     }
 
-    const tail = (skipped > 0 ? texts.skipped(skipped) : "") + (discussionState.answered > 0 ? texts.answered(discussionState.answered) : "");
+    const tail = (skipped > 0 ? texts.skipped(skipped) : "")
+        + (discussionState.already > 0 ? texts.already(discussionState.already) : "")
+        + (discussionState.answered > 0 ? texts.answered(discussionState.answered) : "");
     let note;
     let code;
     if (discussionState.failed > 0) {
@@ -442,6 +495,7 @@ async function runDiscussionCompletion() {
         total: discussionState.total,
         done: discussionState.done,
         completed: discussionState.completed,
+        already: discussionState.already,
         unverified: discussionState.unverified,
         failed: discussionState.failed,
         skipped,
@@ -462,6 +516,7 @@ function startDiscussionCompletion() {
             total: discussionState.total,
             done: discussionState.done,
             completed: discussionState.completed,
+            already: discussionState.already,
             unverified: discussionState.unverified,
             failed: discussionState.failed,
             skipped: discussionState.skipped,
@@ -475,10 +530,10 @@ function startDiscussionCompletion() {
     // Coursera can hand out a new csrf token while the tab stays open, so the page state
     // is read again for every run instead of once per page load
     discussionBootstrapData = null;
-    discussionState = { phase: "running", code: "starting", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: "" };
-    runDiscussionCompletion()
+    discussionState = { phase: "running", code: "starting", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: "" };
+    discussionRunPromise = runDiscussionCompletion()
         .catch(() => {
-            discussionState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.failed };
+            discussionState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, answered: 0, note: texts.failed };
         })
         .finally(() => {
             discussionRunning = false;
@@ -486,15 +541,26 @@ function startDiscussionCompletion() {
     return Promise.resolve(discussionState);
 }
 
+// the promise of the run that is going, so the skip-all step can wait for it
+function waitForDiscussionRun() {
+    return discussionRunPromise;
+}
+
+// the current state, so the skip-all step can read the counts directly
+function discussionCurrentState() {
+    return discussionState;
+}
+
 // show a notice on the page, the toast helper lives in content.js
 function discussionNotify(text) {
     if (typeof showToast === "function") showToast(text);
 }
 
-// read the saved language
+// read the saved language and request mode
 function loadDiscussionLanguage() {
-    return chrome.storage.local.get(["language"]).then((stored) => {
+    return chrome.storage.local.get(["language", "requestMode"]).then((stored) => {
         discussionLanguage = DISCUSSION_TEXTS[stored.language] ? stored.language : "en";
+        discussionRequestMode = stored.requestMode === "instant" ? "instant" : "sequential";
     });
 }
 
@@ -518,6 +584,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes.language && DISCUSSION_TEXTS[changes.language.newValue]) discussionLanguage = changes.language.newValue;
+    if (changes.requestMode) discussionRequestMode = changes.requestMode.newValue === "instant" ? "instant" : "sequential";
 });
 
 loadDiscussionLanguage();

@@ -19,6 +19,7 @@
 // takes over.
 
 const VIDEO_RETRY_DELAY = 8000;
+const VIDEO_INSTANT_RETRY_DELAY = 1000;
 const VIDEO_MAX_ATTEMPTS = 5;
 const VIDEO_ITEM_DELAY = 700;
 const VIDEO_COMMIT_DELAY = 2000;
@@ -26,13 +27,18 @@ const VIDEO_EVENT_MARGIN = 5000;
 
 const VIDEO_TEXTS = {
     en: {
-        started: (count) => `Completing ${count} lecture video${count === 1 ? "" : "s"}, one at a time.`,
+        started: (total, already, remaining) => remaining === 0
+            ? `All ${total} lecture video${total === 1 ? "" : "s"} are already complete.`
+            : already > 0
+                ? `Found ${total} lecture video${total === 1 ? "" : "s"}: ${already} already complete, completing the other ${remaining}.`
+                : `Completing ${total} lecture video${total === 1 ? "" : "s"}, one at a time.`,
         progress: (done, total) => `Completed ${done} of ${total} lecture videos.`,
         finished: (completed, total) => `Completed ${completed} of ${total} lecture videos. Reload the page to see the checkmarks.`,
         partial: (completed, total, failed) => `Completed ${completed} of ${total} lecture videos. ${failed} still ${failed === 1 ? "needs" : "need"} attention.`,
         none: "No lecture videos were found in this course.",
         failed: "The run stopped with an unexpected error. Check the browser console.",
         skipped: (count) => ` ${count} locked lecture${count === 1 ? "" : "s"} left alone.`,
+        already: (count) => ` ${count} lecture video${count === 1 ? " was" : "s were"} already complete.`,
         notCourse: "Open a Coursera course page first.",
         notLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
         identity: "The page and Coursera name two different accounts, so nothing was marked. Reload the page.",
@@ -40,13 +46,18 @@ const VIDEO_TEXTS = {
         busy: "Lecture video completion is already running."
     },
     vi: {
-        started: (count) => `Đang hoàn thành ${count} video bài giảng, từng video một.`,
+        started: (total, already, remaining) => remaining === 0
+            ? `Cả ${total} video bài giảng đều đã hoàn thành.`
+            : already > 0
+                ? `Tìm thấy ${total} video bài giảng: ${already} đã xong, còn ${remaining} sẽ hoàn thành.`
+                : `Đang hoàn thành ${total} video bài giảng, từng video một.`,
         progress: (done, total) => `Đã hoàn thành ${done}/${total} video bài giảng.`,
         finished: (completed, total) => `Đã hoàn thành ${completed}/${total} video bài giảng. Reload trang để thấy dấu tick.`,
         partial: (completed, total, failed) => `Đã hoàn thành ${completed}/${total} video bài giảng. ${failed} video chưa được.`,
         none: "Không tìm thấy video bài giảng nào trong khoá học này.",
         failed: "Lần chạy dừng vì một lỗi bất ngờ. Xem console của trình duyệt.",
         skipped: (count) => ` ${count} bài giảng bị khoá được bỏ qua.`,
+        already: (count) => ` ${count} video bài giảng đã hoàn thành từ trước.`,
         notCourse: "Hãy mở một trang khoá học Coursera trước.",
         notLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
         identity: "Trang và Coursera chỉ hai tài khoản khác nhau, nên không có gì được đánh dấu. Hãy reload trang.",
@@ -57,8 +68,10 @@ const VIDEO_TEXTS = {
 
 let videoRunning = false;
 let videoLanguage = "en";
-let videoState = { phase: "idle", code: "idle", total: 0, done: 0, completed: 0, failed: 0, skipped: 0, note: "" };
+let videoRequestMode = "sequential";
+let videoState = { phase: "idle", code: "idle", total: 0, done: 0, completed: 0, already: 0, failed: 0, skipped: 0, note: "" };
 let videoBootstrap = null;
+let videoRunPromise = Promise.resolve();
 
 // pick the string table for the saved language
 function videoTexts() {
@@ -68,6 +81,18 @@ function videoTexts() {
 // wait for a number of milliseconds
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// instant mode removes the deliberate pause between items. The requests themselves still
+// go one at a time and in the same order, so the queue is never parallel.
+function videoPace(ms) {
+    return videoRequestMode === "instant" ? 0 : ms;
+}
+
+// a retry still has to give Coursera a moment to settle, so instant mode shortens that
+// wait instead of removing it
+function videoRetryPause() {
+    return videoRequestMode === "instant" ? VIDEO_INSTANT_RETRY_DELAY : VIDEO_RETRY_DELAY;
 }
 
 // the page writes its own start-up state into an inline script, and that state already
@@ -207,6 +232,27 @@ function internalCourseId(syllabus) {
     return "";
 }
 
+// the per-course progress list, the same record the outline checkmark is read from. It is
+// keyed by the student and the course, and its "items" map carries the state of every item,
+// so one read tells the run what is already done before it writes anything.
+async function videoCourseProgressItems(userId, courseId) {
+    const key = encodeURIComponent(userId + "~" + courseId);
+    const response = await apiRequest("/api/onDemandCoursesProgress.v1/" + key + "?fields=items", { cache: "no-store" });
+    if (!response.ok) return null;
+    const data = await apiJson(response);
+    const record = (data.elements || [])[0];
+    const items = record && record.items;
+    if (!items || typeof items !== "object") return null;
+    return items;
+}
+
+// true when Coursera's own progress list already reports the lecture as done
+function videoItemCompleted(items, itemId) {
+    if (!items || !Object.prototype.hasOwnProperty.call(items, itemId)) return false;
+    const entry = items[itemId];
+    return Boolean(entry && entry.progressState === "Completed");
+}
+
 // a lecture the course will not let the student open yet
 function itemIsLocked(item) {
     if (item.isLocked === true) return true;
@@ -320,9 +366,9 @@ async function completeLecture(item, context) {
     if (item.videoId && canRecord && videoIsKeyId(item.videoId)) {
         await putVideoProgress(context.userId, context.courseId, item.videoId, item.viewedUpTo);
     }
-    await sleep(VIDEO_COMMIT_DELAY);
+    await sleep(videoPace(VIDEO_COMMIT_DELAY));
     const ended = await postVideoEvent(context.userId, context.slug, item.id, "ended",
-        VIDEO_MAX_ATTEMPTS, VIDEO_RETRY_DELAY, item.viewedUpTo);
+        VIDEO_MAX_ATTEMPTS, videoRetryPause(), item.viewedUpTo);
     if (ended.completed) return true;
 
     if (canRecord && await postCompletedItem(context.userId, context.courseId, item.id)) {
@@ -337,13 +383,13 @@ async function runVideoCompletion() {
     const texts = videoTexts();
     const slug = courseSlug();
     if (!slug) {
-        videoState = { phase: "error", code: "notCourse", total: 0, done: 0, completed: 0, failed: 0, skipped: 0, note: texts.notCourse };
+        videoState = { phase: "error", code: "notCourse", total: 0, done: 0, completed: 0, already: 0, failed: 0, skipped: 0, note: texts.notCourse };
         return videoState;
     }
 
     const userId = await resolveUserId();
     if (!userId) {
-        videoState = { phase: "error", code: "notLoggedIn", total: 0, done: 0, completed: 0, failed: 0, skipped: 0, note: texts.notLoggedIn };
+        videoState = { phase: "error", code: "notLoggedIn", total: 0, done: 0, completed: 0, already: 0, failed: 0, skipped: 0, note: texts.notLoggedIn };
         return videoState;
     }
 
@@ -351,13 +397,13 @@ async function runVideoCompletion() {
     // that names a different one is not a page this run should be writing for
     const cookieUser = videoCookieUser();
     if (cookieUser && cookieUser !== String(userId)) {
-        videoState = { phase: "error", code: "identity", total: 0, done: 0, completed: 0, failed: 0, skipped: 0, note: texts.identity };
+        videoState = { phase: "error", code: "identity", total: 0, done: 0, completed: 0, already: 0, failed: 0, skipped: 0, note: texts.identity };
         return videoState;
     }
 
     const syllabus = await fetchSyllabus(slug);
     if (!syllabus) {
-        videoState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, failed: 0, skipped: 0, note: texts.failed };
+        videoState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, already: 0, failed: 0, skipped: 0, note: texts.failed };
         return videoState;
     }
 
@@ -366,18 +412,31 @@ async function runVideoCompletion() {
     const lectures = allLectures.filter((item) => !item.locked);
     const skipped = allLectures.length - lectures.length;
     if (allLectures.length === 0) {
-        videoState = { phase: "error", code: "none", total: 0, done: 0, completed: 0, failed: 0, skipped: 0, note: texts.none };
+        videoState = { phase: "error", code: "none", total: 0, done: 0, completed: 0, already: 0, failed: 0, skipped: 0, note: texts.none };
         return videoState;
     }
 
-    videoState = { phase: "running", code: "running", total: lectures.length, done: 0, completed: 0, failed: 0, skipped, note: "" };
-    notify(texts.started(lectures.length));
+    // one read-only scan before the first write: the lectures Coursera already reports as
+    // complete are counted and left alone, and only the rest is sent
+    const progressItems = await videoCourseProgressItems(userId, courseId);
+    const alreadyCount = lectures.filter((item) => videoItemCompleted(progressItems, item.id)).length;
+    const remaining = lectures.length - alreadyCount;
+
+    videoState = { phase: "running", code: "running", total: lectures.length, done: 0, completed: 0, already: 0, failed: 0, skipped, note: "" };
+    notify(texts.started(lectures.length, alreadyCount, remaining));
     let stopped = false;
 
     for (const item of lectures) {
         if (videoPageMoved(slug, userId)) {
             stopped = true;
             break;
+        }
+        // the scan already said this lecture is done, so it costs no request at all
+        if (videoItemCompleted(progressItems, item.id)) {
+            videoState.already += 1;
+            videoState.done += 1;
+            notify(texts.progress(videoState.done, videoState.total));
+            continue;
         }
         // an id that cannot go in the event path is reported as a failure and never sent,
         // so a syllabus that lies about its own ids cannot address another lecture
@@ -397,7 +456,7 @@ async function runVideoCompletion() {
         else videoState.failed += 1;
 
         notify(texts.progress(videoState.done, videoState.total));
-        await sleep(VIDEO_ITEM_DELAY);
+        await sleep(videoPace(VIDEO_ITEM_DELAY));
     }
 
     // a run that lost its page or its account keeps what it already confirmed and writes
@@ -409,6 +468,7 @@ async function runVideoCompletion() {
             total: videoState.total,
             done: videoState.done,
             completed: videoState.completed,
+            already: videoState.already,
             failed: videoState.failed,
             skipped,
             note: texts.stopped
@@ -417,7 +477,8 @@ async function runVideoCompletion() {
         return videoState;
     }
 
-    const tail = skipped > 0 ? texts.skipped(skipped) : "";
+    const tail = (skipped > 0 ? texts.skipped(skipped) : "")
+        + (videoState.already > 0 ? texts.already(videoState.already) : "");
     const note = videoState.failed > 0
         ? texts.partial(videoState.completed, videoState.total, videoState.failed) + tail
         : texts.finished(videoState.completed, videoState.total) + tail;
@@ -427,6 +488,7 @@ async function runVideoCompletion() {
         total: videoState.total,
         done: videoState.done,
         completed: videoState.completed,
+        already: videoState.already,
         failed: videoState.failed,
         skipped,
         note
@@ -445,6 +507,7 @@ function startVideoCompletion() {
             total: videoState.total,
             done: videoState.done,
             completed: videoState.completed,
+            already: videoState.already,
             failed: videoState.failed,
             skipped: videoState.skipped,
             note: texts.busy
@@ -456,10 +519,10 @@ function startVideoCompletion() {
     // Coursera can hand out a new csrf token while the tab stays open, so the page state
     // is read again for every run instead of once per page load
     videoBootstrap = null;
-    videoState = { phase: "running", code: "starting", total: 0, done: 0, completed: 0, failed: 0, skipped: 0, note: "" };
-    runVideoCompletion()
+    videoState = { phase: "running", code: "starting", total: 0, done: 0, completed: 0, already: 0, failed: 0, skipped: 0, note: "" };
+    videoRunPromise = runVideoCompletion()
         .catch(() => {
-            videoState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, failed: 0, skipped: 0, note: texts.failed };
+            videoState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, already: 0, failed: 0, skipped: 0, note: texts.failed };
         })
         .finally(() => {
             videoRunning = false;
@@ -467,15 +530,26 @@ function startVideoCompletion() {
     return Promise.resolve(videoState);
 }
 
+// the run that is going on, so the skip-all step can wait for the module to finish
+function waitForVideoRun() {
+    return videoRunPromise;
+}
+
+// the current state, so the skip-all step can read the counts directly
+function videoCurrentState() {
+    return videoState;
+}
+
 // show a notice on the page, the toast helper lives in content.js
 function notify(text, isError) {
     if (typeof showToast === "function") showToast(text, isError);
 }
 
-// read the saved language
+// read the saved language and request mode
 function loadVideoLanguage() {
-    return chrome.storage.local.get(["language"]).then((stored) => {
+    return chrome.storage.local.get(["language", "requestMode"]).then((stored) => {
         videoLanguage = VIDEO_TEXTS[stored.language] ? stored.language : "en";
+        videoRequestMode = stored.requestMode === "instant" ? "instant" : "sequential";
     });
 }
 
@@ -499,6 +573,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes.language && VIDEO_TEXTS[changes.language.newValue]) videoLanguage = changes.language.newValue;
+    if (changes.requestMode) videoRequestMode = changes.requestMode.newValue === "instant" ? "instant" : "sequential";
 });
 
 loadVideoLanguage();

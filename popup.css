@@ -84,6 +84,93 @@ body {
   background: var(--card);
 }
 
+.account-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+}
+
+.account-card[hidden] {
+  display: none;
+}
+
+.avatar {
+  position: relative;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar img[hidden] {
+  display: none;
+}
+
+.avatar-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.account-glyph {
+  width: 19px;
+  height: 19px;
+}
+
+.account-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account-name {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-name.missing {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+.account-email {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-email[hidden] {
+  display: none;
+}
+
 .row {
   display: flex;
   align-items: center;
@@ -91,6 +178,87 @@ body {
   gap: 12px;
   padding: 10px 0;
   cursor: pointer;
+}
+
+.overview-card {
+  display: grid;
+  gap: 8px;
+  padding: 11px 12px 12px;
+}
+
+.overview-card[hidden] {
+  display: none;
+}
+
+.overview-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.overview-title {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.overview-percent {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.overview-name {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.overview-name[hidden] {
+  display: none;
+}
+
+.overview-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.overview-types[hidden] {
+  display: none;
+}
+
+.type-chip {
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.progress {
+  height: 8px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.progress-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-bg);
+  transition: width 0.3s ease;
+}
+
+.overview-caption {
+  margin: 0;
 }
 
 .card .field + .field {
@@ -112,6 +280,10 @@ body {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.45;
+}
+
+.request-hint {
+  margin: -4px 0 6px;
 }
 
 .field {

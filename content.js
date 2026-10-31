@@ -783,6 +783,94 @@ async function autoCopy() {
     await copyNow();
 }
 
+// the start-up state the page writes into an inline script, parsed as the JSON object it is.
+// A script that only mentions window.App is skipped, so the loop can move on to the real one
+function accountAppState(text) {
+    const at = text.indexOf("window.App");
+    if (at < 0) return null;
+    const open = text.indexOf("{", text.indexOf("=", at));
+    if (open < 0) return null;
+    let depth = 0;
+    let quoted = false;
+    let escaped = false;
+    for (let i = open; i < text.length; i += 1) {
+        const ch = text[i];
+        if (quoted) {
+            if (escaped) escaped = false;
+            else if (ch === "\\") escaped = true;
+            else if (ch === '"') quoted = false;
+            continue;
+        }
+        if (ch === '"') {
+            quoted = true;
+            continue;
+        }
+        if (ch === "{") depth += 1;
+        else if (ch === "}") {
+            depth -= 1;
+            if (depth === 0) {
+                try {
+                    return JSON.parse(text.slice(open, i + 1));
+                } catch {
+                    return null;
+                }
+            }
+        }
+    }
+    return null;
+}
+
+// one line of page text, with control characters and runs of space folded away
+function accountLine(value, limit) {
+    if (typeof value !== "string") return "";
+    return value
+        .replace(/[\u0000-\u001f\u007f]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, limit);
+}
+
+// the account email, kept only when it has the shape of one
+function accountEmail(value) {
+    const text = accountLine(value, 120);
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text) ? text : "";
+}
+
+// the profile photo, kept only as an https address the popup can show
+function accountPhoto(value) {
+    const text = typeof value === "string" ? value.trim() : "";
+    if (!text || text.length > 500) return "";
+    try {
+        const url = new URL(text);
+        return url.protocol === "https:" ? url.href : "";
+    } catch {
+        return "";
+    }
+}
+
+// the signed-in account as the page itself describes it. The popup shows the name, the email
+// and the photo back to the student, and the values are never stored or sent anywhere
+function accountFromPage() {
+    const scripts = document.getElementsByTagName("script");
+    for (let i = 0; i < scripts.length; i += 1) {
+        const text = scripts[i].textContent || "";
+        if (text.indexOf("window.App") < 0) continue;
+        const app = accountAppState(text);
+        const store = app && app.context && app.context.dispatcher && app.context.dispatcher.stores
+            && app.context.dispatcher.stores.ApplicationStore;
+        const user = store && store.userData;
+        if (!user || typeof user !== "object" || user.authenticated === false) continue;
+        const account = {
+            name: accountLine(user.fullName || user.full_name || user.display_name, 80),
+            email: accountEmail(user.email_address),
+            photo: accountPhoto(user.photo_120 || user.photo_60 || user.photo_24 || user.photo)
+        };
+        if (!account.name && !account.email && !account.photo) continue;
+        return account;
+    }
+    return null;
+}
+
 // listen for messages from the popup. The channel only ever reaches this file from the
 // extension, never from the page, and a message that is not a plain action is ignored.
 // popup.sendMessage reaches every frame of the tab, so only the Coursera page may answer it
@@ -797,6 +885,10 @@ function startPageChannel() {
         }
         if (request.action === "ping") {
             sendResponse({ ok: true, url: window.location.href });
+            return true;
+        }
+        if (request.action === "accountInfo") {
+            sendResponse(accountFromPage());
             return true;
         }
         // the video and reading modules have their own listeners, so this one must not hold the channel

@@ -20,7 +20,11 @@ const READING_ITEM_DELAY = 700;
 
 const READING_TEXTS = {
     en: {
-        started: (count) => `Completing ${count} reading${count === 1 ? "" : "s"}, one at a time.`,
+        started: (total, already, remaining) => remaining === 0
+            ? `All ${total} reading${total === 1 ? "" : "s"} are already complete.`
+            : already > 0
+                ? `Found ${total} reading${total === 1 ? "" : "s"}: ${already} already complete, completing the other ${remaining}.`
+                : `Completing ${total} reading${total === 1 ? "" : "s"}, one at a time.`,
         progress: (done, total) => `Completed ${done} of ${total} readings.`,
         finished: (completed, total) => `Completed ${completed} of ${total} readings. Reload the page to see the checkmarks.`,
         partial: (completed, total, failed) => `Completed ${completed} of ${total} readings. ${failed} still ${failed === 1 ? "needs" : "need"} attention.`,
@@ -28,6 +32,7 @@ const READING_TEXTS = {
         none: "No reading material was found in this course.",
         failed: "The run stopped with an unexpected error. Check the browser console.",
         skipped: (count) => ` ${count} locked reading${count === 1 ? "" : "s"} left alone.`,
+        already: (count) => ` ${count} reading${count === 1 ? " was" : "s were"} already complete.`,
         notCourse: "Open a Coursera course page first.",
         notLoggedIn: "Coursera did not return a signed-in user. Log in and reload the page.",
         identity: "The page and Coursera name two different accounts, so nothing was marked. Reload the page.",
@@ -35,7 +40,11 @@ const READING_TEXTS = {
         busy: "Reading completion is already running."
     },
     vi: {
-        started: (count) => `Đang hoàn thành ${count} bài đọc, từng bài một.`,
+        started: (total, already, remaining) => remaining === 0
+            ? `Cả ${total} bài đọc đều đã hoàn thành.`
+            : already > 0
+                ? `Tìm thấy ${total} bài đọc: ${already} đã xong, còn ${remaining} sẽ hoàn thành.`
+                : `Đang hoàn thành ${total} bài đọc, từng bài một.`,
         progress: (done, total) => `Đã hoàn thành ${done}/${total} bài đọc.`,
         finished: (completed, total) => `Đã hoàn thành ${completed}/${total} bài đọc. Reload trang để thấy dấu tick.`,
         partial: (completed, total, failed) => `Đã hoàn thành ${completed}/${total} bài đọc. ${failed} bài chưa được.`,
@@ -43,6 +52,7 @@ const READING_TEXTS = {
         none: "Không tìm thấy bài đọc nào trong khoá học này.",
         failed: "Lần chạy dừng vì một lỗi bất ngờ. Xem console của trình duyệt.",
         skipped: (count) => ` ${count} bài đọc bị khoá được bỏ qua.`,
+        already: (count) => ` ${count} bài đọc đã hoàn thành từ trước.`,
         notCourse: "Hãy mở một trang khoá học Coursera trước.",
         notLoggedIn: "Coursera không trả về tài khoản đã đăng nhập. Hãy đăng nhập rồi reload trang.",
         identity: "Trang và Coursera chỉ hai tài khoản khác nhau, nên không có gì được đánh dấu. Hãy reload trang.",
@@ -53,8 +63,10 @@ const READING_TEXTS = {
 
 let readingRunning = false;
 let readingLanguage = "en";
-let readingState = { phase: "idle", code: "idle", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: "" };
+let readingRequestMode = "sequential";
+let readingState = { phase: "idle", code: "idle", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, note: "" };
 let readingBootstrapData = null;
+let readingRunPromise = Promise.resolve();
 
 // pick the string table for the saved language
 function readingTexts() {
@@ -64,6 +76,12 @@ function readingTexts() {
 // wait for a number of milliseconds
 function readingSleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// instant mode removes the deliberate pause between items; the requests still go one at a
+// time and in the same order
+function readingPace(ms) {
+    return readingRequestMode === "instant" ? 0 : ms;
 }
 
 // the page writes its own start-up state into an inline script, and that state already
@@ -183,6 +201,26 @@ function readingCourseId(syllabus) {
     return "";
 }
 
+// the per-course progress list, the same record the outline checkmark is read from. One
+// read tells the run what is already done before it writes anything.
+async function readingCourseProgressItems(userId, courseId) {
+    const key = encodeURIComponent(userId + "~" + courseId);
+    const response = await readingRequest("/api/onDemandCoursesProgress.v1/" + key + "?fields=items", { cache: "no-store" });
+    if (!response.ok) return null;
+    const data = await readingJson(response);
+    const record = (data.elements || [])[0];
+    const items = record && record.items;
+    if (!items || typeof items !== "object") return null;
+    return items;
+}
+
+// true when Coursera's own progress list already reports the reading as done
+function readingItemCompleted(items, itemId) {
+    if (!items || !Object.prototype.hasOwnProperty.call(items, itemId)) return false;
+    const entry = items[itemId];
+    return Boolean(entry && entry.progressState === "Completed");
+}
+
 // a reading the course will not let the student open yet
 function readingItemIsLocked(item) {
     if (item.isLocked === true) return true;
@@ -264,13 +302,13 @@ async function runReadingCompletion() {
     const texts = readingTexts();
     const slug = readingCourseSlug();
     if (!slug) {
-        readingState = { phase: "error", code: "notCourse", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: texts.notCourse };
+        readingState = { phase: "error", code: "notCourse", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, note: texts.notCourse };
         return readingState;
     }
 
     const userId = await readingUserId();
     if (!userId) {
-        readingState = { phase: "error", code: "notLoggedIn", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: texts.notLoggedIn };
+        readingState = { phase: "error", code: "notLoggedIn", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, note: texts.notLoggedIn };
         return readingState;
     }
 
@@ -278,13 +316,13 @@ async function runReadingCompletion() {
     // that names a different one is not a page this run should be writing for
     const cookieUser = readingCookieUser();
     if (cookieUser && cookieUser !== String(userId)) {
-        readingState = { phase: "error", code: "identity", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: texts.identity };
+        readingState = { phase: "error", code: "identity", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, note: texts.identity };
         return readingState;
     }
 
     const syllabus = await readingSyllabus(slug);
     if (!syllabus) {
-        readingState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: texts.failed };
+        readingState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, note: texts.failed };
         return readingState;
     }
 
@@ -293,18 +331,31 @@ async function runReadingCompletion() {
     const readings = allReadings.filter((item) => !item.locked);
     const skipped = allReadings.length - readings.length;
     if (allReadings.length === 0) {
-        readingState = { phase: "error", code: "none", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: texts.none };
+        readingState = { phase: "error", code: "none", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, note: texts.none };
         return readingState;
     }
 
-    readingState = { phase: "running", code: "running", total: readings.length, done: 0, completed: 0, unverified: 0, failed: 0, skipped, note: "" };
-    readingNotify(texts.started(readings.length));
+    // one read-only scan before the first write: the readings Coursera already reports as
+    // complete are counted and left alone, and only the rest is sent
+    const progressItems = await readingCourseProgressItems(userId, courseId);
+    const alreadyCount = readings.filter((item) => readingItemCompleted(progressItems, item.id)).length;
+    const remaining = readings.length - alreadyCount;
+
+    readingState = { phase: "running", code: "running", total: readings.length, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped, note: "" };
+    readingNotify(texts.started(readings.length, alreadyCount, remaining));
     let stopped = false;
 
     for (const item of readings) {
         if (readingPageMoved(slug, userId)) {
             stopped = true;
             break;
+        }
+        // the scan already said this reading is done, so it costs no request at all
+        if (readingItemCompleted(progressItems, item.id)) {
+            readingState.already += 1;
+            readingState.done += 1;
+            readingNotify(texts.progress(readingState.done, readingState.total));
+            continue;
         }
         const safe = readingKeyIsSafe(userId, courseId, item.id);
         // an id the record key cannot hold is reported as a failure and never sent, so a
@@ -317,7 +368,7 @@ async function runReadingCompletion() {
 
         readingNotify(texts.progress(readingState.done, readingState.total));
         // only a real write needs the pause, a refused id costs nothing
-        if (safe) await readingSleep(READING_ITEM_DELAY);
+        if (safe) await readingSleep(readingPace(READING_ITEM_DELAY));
     }
 
     // a run that lost its page or its account keeps what it already confirmed and writes
@@ -329,6 +380,7 @@ async function runReadingCompletion() {
             total: readingState.total,
             done: readingState.done,
             completed: readingState.completed,
+            already: readingState.already,
             unverified: readingState.unverified,
             failed: readingState.failed,
             skipped,
@@ -338,7 +390,8 @@ async function runReadingCompletion() {
         return readingState;
     }
 
-    const tail = skipped > 0 ? texts.skipped(skipped) : "";
+    const tail = (skipped > 0 ? texts.skipped(skipped) : "")
+        + (readingState.already > 0 ? texts.already(readingState.already) : "");
     let note;
     let code;
     if (readingState.failed > 0) {
@@ -358,6 +411,7 @@ async function runReadingCompletion() {
         total: readingState.total,
         done: readingState.done,
         completed: readingState.completed,
+        already: readingState.already,
         unverified: readingState.unverified,
         failed: readingState.failed,
         skipped,
@@ -377,6 +431,7 @@ function startReadingCompletion() {
             total: readingState.total,
             done: readingState.done,
             completed: readingState.completed,
+            already: readingState.already,
             unverified: readingState.unverified,
             failed: readingState.failed,
             skipped: readingState.skipped,
@@ -389,10 +444,10 @@ function startReadingCompletion() {
     // Coursera can hand out a new csrf token while the tab stays open, so the page state
     // is read again for every run instead of once per page load
     readingBootstrapData = null;
-    readingState = { phase: "running", code: "starting", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: "" };
-    runReadingCompletion()
+    readingState = { phase: "running", code: "starting", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, note: "" };
+    readingRunPromise = runReadingCompletion()
         .catch(() => {
-            readingState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, unverified: 0, failed: 0, skipped: 0, note: texts.failed };
+            readingState = { phase: "error", code: "failed", total: 0, done: 0, completed: 0, already: 0, unverified: 0, failed: 0, skipped: 0, note: texts.failed };
         })
         .finally(() => {
             readingRunning = false;
@@ -400,15 +455,26 @@ function startReadingCompletion() {
     return Promise.resolve(readingState);
 }
 
+// the run that is going on, so the skip-all step can wait for the module to finish
+function waitForReadingRun() {
+    return readingRunPromise;
+}
+
+// the current state, so the skip-all step can read the counts directly
+function readingCurrentState() {
+    return readingState;
+}
+
 // show a notice on the page, the toast helper lives in content.js
 function readingNotify(text) {
     if (typeof showToast === "function") showToast(text);
 }
 
-// read the saved language
+// read the saved language and request mode
 function loadReadingLanguage() {
-    return chrome.storage.local.get(["language"]).then((stored) => {
+    return chrome.storage.local.get(["language", "requestMode"]).then((stored) => {
         readingLanguage = READING_TEXTS[stored.language] ? stored.language : "en";
+        readingRequestMode = stored.requestMode === "instant" ? "instant" : "sequential";
     });
 }
 
@@ -432,6 +498,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes.language && READING_TEXTS[changes.language.newValue]) readingLanguage = changes.language.newValue;
+    if (changes.requestMode) readingRequestMode = changes.requestMode.newValue === "instant" ? "instant" : "sequential";
 });
 
 loadReadingLanguage();
